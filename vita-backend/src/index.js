@@ -2,12 +2,14 @@ import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import pool from "./db.js";
+import resumesRouter from "./routes/resumes.js";
 
 dotenv.config();
 
 const app = express();
 app.use(cors());
 app.use(express.json());
+app.use("/resumes", resumesRouter);
 
 // Simple check that the server itself is up
 app.get("/health", (req, res) => {
