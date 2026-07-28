@@ -3,6 +3,7 @@ import cors from "cors";
 import dotenv from "dotenv";
 import pool from "./db.js";
 import resumesRouter from "./routes/resumes.js";
+import jobPostingsRouter from "./routes/jobPostings.js";
 
 dotenv.config();
 
@@ -10,6 +11,7 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 app.use("/resumes", resumesRouter);
+app.use("/job-postings", jobPostingsRouter);
 
 // Simple check that the server itself is up
 app.get("/health", (req, res) => {

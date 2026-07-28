@@ -120,6 +120,8 @@ router.get("/:id", async (req, res) => {
       }
     }
 
+    // reason: null is expected: that field only gets filled in later when the resume scanner edits a bullet and records why
+
     res.json({ ...resume, sections: Array.from(sectionsMap.values()) });
   } catch (err) {
     console.error(err);
