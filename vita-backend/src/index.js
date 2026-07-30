@@ -7,6 +7,7 @@ import jobPostingsRouter from "./routes/jobPostings.js";
 import scansRouter from "./routes/scans.js";
 import applicationsRouter from "./routes/applications.js";
 import projectsRouter from "./routes/projects.js";
+import interviewSessionsRouter from "./routes/interviewSessions.js";
 
 dotenv.config();
 
@@ -18,6 +19,7 @@ app.use("/job-postings", jobPostingsRouter);
 app.use("/scans", scansRouter);
 app.use("/applications", applicationsRouter);
 app.use("/projects", projectsRouter);
+app.use("/interview-sessions", interviewSessionsRouter);
 
 // Simple check that the server itself is up
 app.get("/health", (req, res) => {
