@@ -2,3 +2,8 @@ node_modules
 .env
 vita-backend/node_modules
 vita-frontend/node_modules
+node_modules/
+dist/
+.env
+*.log
+
