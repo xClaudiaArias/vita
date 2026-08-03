@@ -30,7 +30,6 @@ async function getResumeWithSections(resumeId) {
   return sectionsMap;
 }
 
-
 router.post("/", async (req, res) => {
   const { resume_id, job_posting_id } = req.body;
 
@@ -41,7 +40,7 @@ router.post("/", async (req, res) => {
   }
 
   try {
-    // 1. Load the resume content and the job posting text
+    //  Load the resume content and the job posting text
     const sectionsMap = await getResumeWithSections(resume_id);
     const jobResult = await pool.query(
       "SELECT raw_description, company, role_title FROM job_postings WHERE id = $1",
@@ -61,8 +60,7 @@ router.post("/", async (req, res) => {
       .join("\n\n");
 
     // 2. Ask Claude to compare them and return structured JSON.
-    // We're explicit that it must return ONLY JSON, nothing else,
-    // so we can parse the response directly.
+
     const prompt = `You are comparing a resume against a job posting to help the candidate tailor their resume.
 
 JOB POSTING (${job.company} — ${job.role_title}):
@@ -119,7 +117,7 @@ Keep suggestions to 2-4 of the highest-impact changes. Be encouraging and specif
       throw new Error("Could not parse AI response as JSON: " + rawText.slice(0, 200));
     }
 
-    // 3. Store the scan and its suggestions in a transaction
+    // Store the scan and its suggestions in a transaction
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
@@ -161,9 +159,92 @@ Keep suggestions to 2-4 of the highest-impact changes. Be encouraging and specif
   }
 });
 
+router.patch("/suggestions/:suggestionId", async (req, res) => {
+  const { suggestionId } = req.params;
+  const { action } = req.body;
+
+  if (!["accept", "skip"].includes(action)) {
+    return res.status(400).json({ error: "action must be 'accept' or 'skip'" });
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+
+    const suggestionResult = await client.query(
+      "SELECT * FROM scan_suggestions WHERE id = $1",
+      [suggestionId]
+    );
+    if (suggestionResult.rows.length === 0) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ error: "Suggestion not found" });
+    }
+    const suggestion = suggestionResult.rows[0];
+
+    if (action === "skip") {
+      await client.query(
+        "UPDATE scan_suggestions SET status = 'skipped' WHERE id = $1",
+        [suggestionId]
+      );
+      await client.query("COMMIT");
+      return res.json({ id: suggestionId, status: "skipped" });
+    }
+
+    // action === "accept"
+    if (suggestion.bullet_id) {
+      // editing an existing bullet
+      await client.query(
+        `UPDATE resume_bullets
+         SET content = $1, last_edited_reason = $2, last_edited_at = now()
+         WHERE id = $3`,
+        [suggestion.suggested_text, suggestion.reason, suggestion.bullet_id]
+      );
+    } else {
+      // brand new bullet — find the resume via the scan, then the right section
+      const scanResult = await client.query(
+        "SELECT resume_id FROM scans WHERE id = $1",
+        [suggestion.scan_id]
+      );
+      const resumeId = scanResult.rows[0].resume_id;
+
+      let sectionResult = await client.query(
+        "SELECT id FROM resume_sections WHERE resume_id = $1 AND type = $2",
+        [resumeId, suggestion.section_type]
+      );
+
+      let sectionId;
+      if (sectionResult.rows.length === 0) {
+        // section doesn't exist yet on this resume — create it
+        const newSection = await client.query(
+          "INSERT INTO resume_sections (resume_id, type) VALUES ($1, $2) RETURNING id",
+          [resumeId, suggestion.section_type]
+        );
+        sectionId = newSection.rows[0].id;
+      } else {
+        sectionId = sectionResult.rows[0].id;
+      }
+
+      await client.query(
+        `INSERT INTO resume_bullets (section_id, content, last_edited_reason, last_edited_at)
+         VALUES ($1, $2, $3, now())`,
+        [sectionId, suggestion.suggested_text, suggestion.reason]
+      );
+    }
+
+    await client.query(
+      "UPDATE scan_suggestions SET status = 'accepted' WHERE id = $1",
+      [suggestionId]
+    );
+
+    await client.query("COMMIT");
+    res.json({ id: suggestionId, status: "accepted" });
+  } catch (err) {
+    await client.query("ROLLBACK");
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  } finally {
+    client.release();
+  }
+});
+
 export default router;
-
-
-// TODO: 
-// Set uo anthropic key.
-// Not working at the moment due to support error.
