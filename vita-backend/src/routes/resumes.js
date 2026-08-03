@@ -3,19 +3,7 @@ import pool from "../db.js";
 
 const router = express.Router();
 
-// ─────────────────────────────────────────
-// POST /resumes
-// Creates a resume with its sections and bullets in one request.
-// Expects a body like:
-// {
-//   "user_id": "uuid",
-//   "label": "Product Design",
-//   "sections": [
-//     { "type": "summary", "bullets": ["Product designer with 6 years..."] },
-//     { "type": "experience", "bullets": ["Led design for...", "Partnered with..."] }
-//   ]
-// }
-// ─────────────────────────────────────────
+
 router.post("/", async (req, res) => {
   const { user_id, label, sections } = req.body;
 
@@ -23,10 +11,6 @@ router.post("/", async (req, res) => {
     return res.status(400).json({ error: "user_id and label are required" });
   }
 
-  // We use a "client" (not the shared pool) here because we need several
-  // queries to succeed or fail together as one transaction — if inserting
-  // a bullet fails halfway through, we don't want a half-created resume
-  // left behind in the database.
   const client = await pool.connect();
 
   try {
@@ -66,11 +50,55 @@ router.post("/", async (req, res) => {
   }
 });
 
-// ─────────────────────────────────────────
-// GET /resumes/:id
+
+router.get("/", async (req, res) => {
+  const { user_id } = req.query;
+
+  if (!user_id) {
+    return res.status(400).json({ error: "user_id query param is required" });
+  }
+
+  try {
+    const result = await pool.query(
+      "SELECT id, label, updated_at FROM resumes WHERE user_id = $1 ORDER BY updated_at DESC",
+      [user_id]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
+router.patch("/bullets/:bulletId", async (req, res) => {
+  const { bulletId } = req.params;
+  const { content } = req.body;
+
+  if (!content) {
+    return res.status(400).json({ error: "content is required" });
+  }
+
+  try {
+    const result = await pool.query(
+      `UPDATE resume_bullets SET content = $1, last_edited_at = now()
+       WHERE id = $2 RETURNING *`,
+      [content, bulletId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Bullet not found" });
+    }
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
 // Fetches a resume with its sections and bullets nested,
 // matching the shape the frontend editor needs.
-// ─────────────────────────────────────────
 router.get("/:id", async (req, res) => {
   const { id } = req.params;
 
@@ -86,9 +114,7 @@ router.get("/:id", async (req, res) => {
 
     const resume = resumeResult.rows[0];
 
-    // One query joining sections + bullets is more efficient than looping
-    // queries per section — this returns one row per bullet, ordered
-    // correctly, and we reassemble it into a nested shape below.
+    // One query joining sections + bullets is more efficient than looping queries per section — this returns one row per bullet, ordered
     const rowsResult = await pool.query(
       `SELECT
          s.id AS section_id, s.type AS section_type, s.sort_order AS section_order,
@@ -101,7 +127,7 @@ router.get("/:id", async (req, res) => {
       [id]
     );
 
-    // Reassemble the flat rows into { sections: [ { bullets: [...] } ] }
+  
     const sectionsMap = new Map();
     for (const row of rowsResult.rows) {
       if (!sectionsMap.has(row.section_id)) {
@@ -119,8 +145,6 @@ router.get("/:id", async (req, res) => {
         });
       }
     }
-
-    // reason: null is expected: that field only gets filled in later when the resume scanner edits a bullet and records why
 
     res.json({ ...resume, sections: Array.from(sectionsMap.values()) });
   } catch (err) {
