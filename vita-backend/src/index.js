@@ -8,6 +8,7 @@ import scansRouter from "./routes/scans.js";
 import applicationsRouter from "./routes/applications.js";
 import projectsRouter from "./routes/projects.js";
 import interviewSessionsRouter from "./routes/interviewSessions.js";
+import dashboardRouter from "./routes/dashboard.js";
 
 dotenv.config();
 
@@ -20,6 +21,7 @@ app.use("/scans", scansRouter);
 app.use("/applications", applicationsRouter);
 app.use("/projects", projectsRouter);
 app.use("/interview-sessions", interviewSessionsRouter);
+app.use("/dashboard", dashboardRouter);
 
 // Simple check that the server itself is up
 app.get("/health", (req, res) => {
