@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 
-// VITA brand tokens
+// VITA brand tokens 
 const colors = {
   cream: "#F2E9E4",
   indigo: "#0F0080",
@@ -64,7 +64,7 @@ function EmptyState({ title, subtitle }) {
   );
 }
 
-// Tracker view ─────────
+// Tracker view
 function Tracker({ userId }) {
   const [applications, setApplications] = useState([]);
   const [status, setStatus] = useState("idle"); // idle | loading | error | ready
@@ -156,7 +156,7 @@ function Tracker({ userId }) {
   );
 }
 
-// Portfolio view 
+// Portfolio view
 function Portfolio({ userId }) {
   const [projects, setProjects] = useState([]);
   const [status, setStatus] = useState("idle");
@@ -302,7 +302,7 @@ function Scanner({ userId }) {
     return <EmptyState title="Paste a user ID above" subtitle="We need to know whose resume to scan." />;
   }
 
-  // Job input step ──
+  // Job input step
   if (step === "input" || step === "scanning") {
     return (
       <div style={{ background: "#fff", borderRadius: 12, padding: "20px 22px" }}>
@@ -370,7 +370,7 @@ function Scanner({ userId }) {
     );
   }
 
-  // Error step (e.g. AI credits not available yet) ──
+  // Error step (e.g. AI credits not available yet)
   if (step === "error") {
     return (
       <div style={{ background: "#fff", borderRadius: 12, padding: "20px 22px" }}>
@@ -390,7 +390,7 @@ function Scanner({ userId }) {
     );
   }
 
-  // Results step ──
+  // Results step
   return (
     <div style={{ background: colors.cream, borderRadius: 12, padding: "1.25rem" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
@@ -483,10 +483,142 @@ const inputStyle = {
   display: "block",
 };
 
-// App shell
+// Dashboard view──
+function Dashboard({ userId }) {
+  const [data, setData] = useState(null);
+  const [status, setStatus] = useState("idle");
+  const [errorMsg, setErrorMsg] = useState("");
+
+  useEffect(() => {
+    if (!userId) return;
+    setStatus("loading");
+    fetch(`${API_BASE}/dashboard?user_id=${userId}`)
+      .then(async (r) => {
+        const body = await r.json();
+        if (!r.ok) throw new Error(body.error || "Failed to load dashboard");
+        setData(body);
+        setStatus("ready");
+      })
+      .catch((err) => {
+        setErrorMsg(err.message);
+        setStatus("error");
+      });
+  }, [userId]);
+
+  if (!userId) {
+    return <EmptyState title="Paste a user ID above" subtitle="We need to know whose dashboard to load." />;
+  }
+  if (status === "loading" || status === "idle") {
+    return <EmptyState title="Loading your dashboard…" subtitle="Just a moment." />;
+  }
+  if (status === "error") {
+    return (
+      <EmptyState
+        title="Couldn't reach the server"
+        subtitle={`Make sure your backend is running on localhost:4000. (${errorMsg})`}
+      />
+    );
+  }
+
+  const firstName = (data.user.name || "there").split(" ")[0];
+  const goalPct = Math.min(100, Math.round((data.weekly_progress / (data.user.weekly_goal || 1)) * 100));
+
+  return (
+    <div>
+      <div style={{ background: colors.indigo, borderRadius: 16, padding: "1.5rem", marginBottom: 12 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
+          <div>
+            <p style={{ fontFamily: "Fraunces, serif", fontSize: 20, color: colors.cream, margin: "0 0 4px" }}>
+              Good to see you, {firstName}
+            </p>
+            <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: colors.lavender, margin: 0 }}>
+              {data.user.current_streak > 0
+                ? `${data.user.current_streak}-day streak · you're on a roll`
+                : "Let's get your streak going"}
+            </p>
+          </div>
+          <div style={{ textAlign: "center" }}>
+            <div style={{ width: 44, height: 44, borderRadius: "50%", background: colors.terracotta, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 0 4px" }}>
+              <p style={{ fontFamily: "Inter, sans-serif", fontSize: 14, fontWeight: 500, color: "#4A1B0C", margin: 0 }}>
+                {firstName.slice(0, 2).toUpperCase()}
+              </p>
+            </div>
+          </div>
+        </div>
+        <div style={{ background: "rgba(242,233,228,0.12)", borderRadius: 10, padding: "10px 14px", display: "flex", justifyContent: "space-between" }}>
+          <p style={{ fontFamily: "Inter, sans-serif", fontSize: 12, color: colors.cream, margin: 0 }}>
+            Weekly goal: {data.user.weekly_goal} applications
+          </p>
+          <p style={{ fontFamily: "Inter, sans-serif", fontSize: 12, fontWeight: 500, color: colors.cream, margin: 0 }}>
+            {data.weekly_progress} / {data.user.weekly_goal}
+          </p>
+        </div>
+      </div>
+
+      <div style={{ display: "flex", gap: 12, marginBottom: 12, flexWrap: "wrap" }}>
+        <div style={{ flex: 1, minWidth: 220, background: "#fff", borderRadius: 12, padding: "14px 16px" }}>
+          <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, fontWeight: 500, color: colors.indigo, margin: "0 0 10px" }}>
+            Coming up
+          </p>
+          {data.upcoming.length === 0 ? (
+            <p style={{ fontFamily: "Inter, sans-serif", fontSize: 12, color: colors.faint, margin: 0 }}>Nothing on the horizon.</p>
+          ) : (
+            data.upcoming.map((item, i) => (
+              <div key={i} style={{ marginBottom: 8 }}>
+                <p style={{ fontFamily: "Inter, sans-serif", fontSize: 12, color: colors.ink, margin: 0 }}>
+                  {item.type === "interview" ? "Interview" : "Deadline"} · {item.company}
+                </p>
+                <p style={{ fontFamily: "Inter, sans-serif", fontSize: 11, color: colors.faint, margin: 0 }}>
+                  {new Date(item.date).toLocaleString()}
+                </p>
+              </div>
+            ))
+          )}
+        </div>
+
+        <div style={{ flex: 1, minWidth: 220, background: "#fff", borderRadius: 12, padding: "14px 16px" }}>
+          <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, fontWeight: 500, color: colors.indigo, margin: "0 0 10px" }}>
+            New matches
+          </p>
+          {data.new_matches.length === 0 ? (
+            <p style={{ fontFamily: "Inter, sans-serif", fontSize: 12, color: colors.faint, margin: 0 }}>None saved yet.</p>
+          ) : (
+            data.new_matches.map((m) => (
+              <div key={m.id} style={{ marginBottom: 8 }}>
+                <p style={{ fontFamily: "Inter, sans-serif", fontSize: 12, color: colors.ink, margin: 0 }}>
+                  {m.role_title} · {m.company}
+                </p>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+
+      <div style={{ background: "#fff", borderRadius: 12, padding: "14px 16px" }}>
+        <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, fontWeight: 500, color: colors.indigo, margin: "0 0 10px" }}>
+          Recent activity
+        </p>
+        {data.recent_activity.length === 0 ? (
+          <p style={{ fontFamily: "Inter, sans-serif", fontSize: 12, color: colors.faint, margin: 0 }}>Nothing yet.</p>
+        ) : (
+          data.recent_activity.map((a, i) => (
+            <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+              <span style={{ width: 6, height: 6, borderRadius: "50%", background: colors.lavender, display: "inline-block" }} />
+              <p style={{ fontFamily: "Inter, sans-serif", fontSize: 12, color: colors.muted, margin: 0 }}>
+                {a.type === "application" ? "Applied to " : ""}{a.description}
+              </p>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
+// App shell───────
 export default function VitaApp() {
   const [userId, setUserId] = useState("");
-  const [tab, setTab] = useState("tracker");
+  const [tab, setTab] = useState("dashboard");
 
   return (
     <div style={{ background: colors.cream, minHeight: 500, padding: 24, borderRadius: 16 }}>
@@ -517,6 +649,7 @@ export default function VitaApp() {
 
       <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
         {[
+          { key: "dashboard", label: "Dashboard" },
           { key: "scanner", label: "Scanner" },
           { key: "tracker", label: "Tracker" },
           { key: "portfolio", label: "Portfolio" },
@@ -541,6 +674,7 @@ export default function VitaApp() {
         ))}
       </div>
 
+      {tab === "dashboard" && <Dashboard userId={userId} />}
       {tab === "scanner" && <Scanner userId={userId} />}
       {tab === "tracker" && <Tracker userId={userId} />}
       {tab === "portfolio" && <Portfolio userId={userId} />}
