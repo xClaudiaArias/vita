@@ -28,6 +28,7 @@ router.get("/", async (req, res) => {
 
         // Interviews and deadlines coming up, combined and sorted by soonest.
         // UNION ALL merges two similarly-shaped queries into one result set.
+        // UNION ALL — it stacks two differently-sourced queries (interviews from one condition, deadlines from another; new applications and resume updates in the other query) into a single combined, sortable result set, as long as both sides have the same column shape. It's what lets "coming up" show interview dates and deadlines together, sorted by whichever is soonest, without the frontend having to merge two separate API calls itself.
         pool.query(
           `SELECT 'interview' AS type, jp.company, jp.role_title, a.interview_at AS date
              FROM applications a JOIN job_postings jp ON jp.id = a.job_posting_id
