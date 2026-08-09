@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 
-// VITA brand tokens 
+// VITA brand tokens
 const colors = {
   cream: "#F2E9E4",
   indigo: "#0F0080",
@@ -25,7 +25,7 @@ const statusStyles = {
 
 const API_BASE = "http://localhost:4000";
 
-// Small building blocks 
+// Small building block
 function Pill({ bg, color, children }) {
   return (
     <span
@@ -64,7 +64,7 @@ function EmptyState({ title, subtitle }) {
   );
 }
 
-// Tracker view
+// Tracker view──
 function Tracker({ userId }) {
   const [applications, setApplications] = useState([]);
   const [status, setStatus] = useState("idle"); // idle | loading | error | ready
@@ -235,9 +235,9 @@ function Portfolio({ userId }) {
   );
 }
 
-// Resume Scanner view
+// Resume Scanner view─────────────────────────
 function Scanner({ userId }) {
-  const [step, setStep] = useState("input"); // input | scanning | results | error
+  const [step, setStep] = useState("input"); // input | scanning | results | confirmation | editor | error
   const [resumes, setResumes] = useState([]);
   const [selectedResumeId, setSelectedResumeId] = useState("");
   const [company, setCompany] = useState("");
@@ -245,6 +245,11 @@ function Scanner({ userId }) {
   const [description, setDescription] = useState("");
   const [scan, setScan] = useState(null);
   const [errorMsg, setErrorMsg] = useState("");
+  const [resumeDetail, setResumeDetail] = useState(null);
+  const [resumeStatus, setResumeStatus] = useState("idle");
+  const [editingBulletId, setEditingBulletId] = useState(null);
+  const [draftText, setDraftText] = useState("");
+  const [openReasonId, setOpenReasonId] = useState(null);
 
   useEffect(() => {
     if (!userId) return;
@@ -296,6 +301,29 @@ function Scanner({ userId }) {
         s.id === suggestionId ? { ...s, status: action === "accept" ? "accepted" : "skipped" } : s
       ),
     }));
+  };
+
+  const loadResume = async (resumeId) => {
+    setResumeStatus("loading");
+    try {
+      const res = await fetch(`${API_BASE}/resumes/${resumeId}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Couldn't load resume");
+      setResumeDetail(data);
+      setResumeStatus("ready");
+    } catch (err) {
+      setResumeStatus("error");
+    }
+  };
+
+  const saveBulletEdit = async (bulletId) => {
+    await fetch(`${API_BASE}/resumes/bullets/${bulletId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content: draftText }),
+    });
+    setEditingBulletId(null);
+    loadResume(selectedResumeId);
   };
 
   if (!userId) {
@@ -390,6 +418,38 @@ function Scanner({ userId }) {
     );
   }
 
+  // Confirmation step
+  if (step === "confirmation") {
+    return (
+      <ScannerConfirmation
+        scan={scan}
+        company={company}
+        roleTitle={roleTitle}
+        onViewResume={() => {
+          setStep("editor");
+          loadResume(selectedResumeId);
+        }}
+      />
+    );
+  }
+
+  // Editor step
+  if (step === "editor") {
+    return (
+      <ResumeEditor
+        resumeDetail={resumeDetail}
+        status={resumeStatus}
+        editingBulletId={editingBulletId}
+        draftText={draftText}
+        openReasonId={openReasonId}
+        onStartEdit={(bullet) => { setEditingBulletId(bullet.id); setDraftText(bullet.content); }}
+        onDraftChange={setDraftText}
+        onSave={saveBulletEdit}
+        onToggleReason={(id) => setOpenReasonId((prev) => (prev === id ? null : id))}
+      />
+    );
+  }
+
   // Results step
   return (
     <div style={{ background: colors.cream, borderRadius: 12, padding: "1.25rem" }}>
@@ -464,6 +524,144 @@ function Scanner({ userId }) {
           )}
         </div>
       ))}
+
+      <button
+        onClick={() => setStep("confirmation")}
+        style={{ marginTop: 4, background: colors.indigo, color: colors.cream, border: "none", borderRadius: 10, padding: "10px 20px", fontFamily: "Inter, sans-serif", fontSize: 13, fontWeight: 500, cursor: "pointer" }}
+      >
+        Continue
+      </button>
+    </div>
+  );
+}
+
+function ScannerConfirmation({ scan, company, roleTitle, onViewResume }) {
+  const accepted = scan.suggestions.filter((s) => s.status === "accepted");
+
+  return (
+    <div style={{ background: "#fff", borderRadius: 12, padding: "20px 22px" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
+        <div style={{ width: 32, height: 32, borderRadius: "50%", background: colors.indigo, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <span style={{ color: colors.cream, fontSize: 14 }}>✓</span>
+        </div>
+        <p style={{ fontFamily: "Fraunces, serif", fontSize: 18, color: colors.indigo, margin: 0 }}>
+          Your resume is updated
+        </p>
+      </div>
+      <p style={{ fontFamily: "Inter, sans-serif", fontSize: 12, color: colors.faint, margin: "0 0 16px 42px" }}>
+        {accepted.length} edit{accepted.length === 1 ? "" : "s"} applied for {company} · {roleTitle}.
+      </p>
+
+      {accepted.length > 0 && (
+        <div style={{ background: colors.terracottaBg, borderRadius: 12, padding: "14px 16px", marginBottom: 16 }}>
+          <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, fontWeight: 500, color: colors.terracottaText, margin: "0 0 10px" }}>
+            What changed
+          </p>
+          {accepted.map((s) => (
+            <p key={s.id} style={{ fontFamily: "Inter, sans-serif", fontSize: 12, color: "#4A1B0C", margin: "0 0 6px" }}>
+              • {s.reason}
+            </p>
+          ))}
+        </div>
+      )}
+
+      <p style={{ fontFamily: "Inter, sans-serif", fontSize: 11, color: colors.faint, margin: "0 0 16px" }}>
+        Want an updated match score? Run a new scan any time — it'll reflect these changes.
+      </p>
+
+      <button
+        onClick={onViewResume}
+        style={{ background: colors.indigo, color: colors.cream, border: "none", borderRadius: 10, padding: "10px 20px", fontFamily: "Inter, sans-serif", fontSize: 13, fontWeight: 500, cursor: "pointer" }}
+      >
+        View full resume
+      </button>
+    </div>
+  );
+}
+
+function ResumeEditor({ resumeDetail, status, editingBulletId, draftText, openReasonId, onStartEdit, onDraftChange, onSave, onToggleReason }) {
+  if (status === "loading" || !resumeDetail) {
+    return <EmptyState title="Loading your resume…" subtitle="Just a moment." />;
+  }
+
+  return (
+    <div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+        <p style={{ fontFamily: "Fraunces, serif", fontSize: 18, color: colors.indigo, margin: 0 }}>
+          {resumeDetail.label} resume
+        </p>
+        <span style={{ background: colors.lavenderBg, color: colors.indigoDeep, fontSize: 11, padding: "4px 10px", borderRadius: 20, fontFamily: "Inter, sans-serif" }}>
+          Autosaved
+        </span>
+      </div>
+
+      <div style={{ background: "#fff", borderRadius: 12, padding: "20px 22px" }}>
+        {resumeDetail.sections.map((section) => (
+          <div key={section.id} style={{ marginBottom: 18 }}>
+            <p style={{ fontFamily: "Inter, sans-serif", fontSize: 11, fontWeight: 500, color: colors.indigo, letterSpacing: "0.02em", margin: "0 0 8px" }}>
+              {section.type.toUpperCase()}
+            </p>
+            {section.bullets.map((bullet) => {
+              const wasEdited = !!bullet.reason;
+              const isEditing = editingBulletId === bullet.id;
+              return (
+                <div key={bullet.id} style={{ marginBottom: 6 }}>
+                  {isEditing ? (
+                    <div>
+                      <textarea
+                        value={draftText}
+                        onChange={(e) => onDraftChange(e.target.value)}
+                        rows={2}
+                        style={{ width: "100%", fontFamily: "Inter, sans-serif", fontSize: 13, padding: 8, borderRadius: 6, border: `0.5px solid ${colors.border}`, boxSizing: "border-box" }}
+                      />
+                      <button
+                        onClick={() => onSave(bullet.id)}
+                        style={{ marginTop: 4, background: colors.indigo, color: colors.cream, border: "none", borderRadius: 6, padding: "4px 12px", fontFamily: "Inter, sans-serif", fontSize: 11, cursor: "pointer" }}
+                      >
+                        Save
+                      </button>
+                    </div>
+                  ) : (
+                    <div
+                      onClick={() => onStartEdit(bullet)}
+                      style={{
+                        fontFamily: "Inter, sans-serif",
+                        fontSize: 13,
+                        color: colors.ink,
+                        lineHeight: 1.6,
+                        background: wasEdited ? colors.terracottaBg : "transparent",
+                        borderRadius: 6,
+                        padding: wasEdited ? "8px 10px" : "2px 0",
+                        marginLeft: wasEdited ? -10 : 0,
+                        cursor: "pointer",
+                      }}
+                    >
+                      {bullet.content}
+                      {wasEdited && (
+                        <span
+                          onClick={(e) => { e.stopPropagation(); onToggleReason(bullet.id); }}
+                          style={{ marginLeft: 8, fontSize: 11, color: colors.terracottaText, cursor: "pointer" }}
+                        >
+                          ⓘ
+                        </span>
+                      )}
+                    </div>
+                  )}
+                  {wasEdited && openReasonId === bullet.id && (
+                    <p style={{ fontFamily: "Inter, sans-serif", fontSize: 11, color: colors.faint, margin: "4px 0 0", fontStyle: "italic" }}>
+                      {bullet.reason}
+                    </p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        ))}
+      </div>
+
+      <p style={{ fontFamily: "Inter, sans-serif", fontSize: 11, color: colors.faint, margin: "12px 0 0" }}>
+        Tap any line to edit. Tinted lines were updated during a scan — tap the ⓘ to see why.
+      </p>
     </div>
   );
 }
@@ -483,7 +681,7 @@ const inputStyle = {
   display: "block",
 };
 
-// Dashboard view──
+// Dashboard view─
 function Dashboard({ userId }) {
   const [data, setData] = useState(null);
   const [status, setStatus] = useState("idle");
@@ -615,7 +813,7 @@ function Dashboard({ userId }) {
   );
 }
 
-// App shell───────
+// App shell──────
 export default function VitaApp() {
   const [userId, setUserId] = useState("");
   const [tab, setTab] = useState("dashboard");
