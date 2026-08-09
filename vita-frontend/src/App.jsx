@@ -25,7 +25,7 @@ const statusStyles = {
 
 const API_BASE = "http://localhost:4000";
 
-// Small building block
+// Small building blocks
 function Pill({ bg, color, children }) {
   return (
     <span
@@ -64,7 +64,7 @@ function EmptyState({ title, subtitle }) {
   );
 }
 
-// Tracker view──
+// Tracker view
 function Tracker({ userId }) {
   const [applications, setApplications] = useState([]);
   const [status, setStatus] = useState("idle"); // idle | loading | error | ready
@@ -235,7 +235,7 @@ function Portfolio({ userId }) {
   );
 }
 
-// Resume Scanner view─────────────────────────
+// Resume Scanner view
 function Scanner({ userId }) {
   const [step, setStep] = useState("input"); // input | scanning | results | confirmation | editor | error
   const [resumes, setResumes] = useState([]);
@@ -681,7 +681,7 @@ const inputStyle = {
   display: "block",
 };
 
-// Dashboard view─
+// Dashboard view────────
 function Dashboard({ userId }) {
   const [data, setData] = useState(null);
   const [status, setStatus] = useState("idle");
@@ -813,7 +813,180 @@ function Dashboard({ userId }) {
   );
 }
 
-// App shell──────
+// Interview Chatbot view──────────────────────
+function InterviewChat({ userId }) {
+  const [applications, setApplications] = useState([]);
+  const [selectedAppId, setSelectedAppId] = useState("");
+  const [sessionId, setSessionId] = useState(null);
+  const [messages, setMessages] = useState([]);
+  const [input, setInput] = useState("");
+  const [sending, setSending] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
+
+  useEffect(() => {
+    if (!userId) return;
+    fetch(`${API_BASE}/applications?user_id=${userId}`)
+      .then((r) => r.json())
+      .then(setApplications)
+      .catch(() => {});
+  }, [userId]);
+
+  const startSession = async () => {
+    setErrorMsg("");
+    try {
+      const res = await fetch(`${API_BASE}/interview-sessions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user_id: userId, application_id: selectedAppId || null }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Couldn't start session");
+      setSessionId(data.id);
+      setMessages([]);
+    } catch (err) {
+      setErrorMsg(err.message);
+    }
+  };
+
+  const sendMessage = async () => {
+    if (!input.trim() || sending) return;
+    const text = input.trim();
+    setInput("");
+    setErrorMsg("");
+
+    // Show the user's message right away, before the server confirms —
+    // makes the chat feel responsive instead of waiting on a round trip.
+    setMessages((prev) => [...prev, { sender: "user", content: text, id: `pending-${Date.now()}` }]);
+    setSending(true);
+
+    try {
+      const res = await fetch(`${API_BASE}/interview-sessions/${sessionId}/messages`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: text }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Couldn't get a reply");
+      setMessages((prev) => [...prev, data.vita_message]);
+    } catch (err) {
+      setErrorMsg(err.message);
+    } finally {
+      setSending(false);
+    }
+  };
+
+  if (!userId) {
+    return <EmptyState title="Paste a user ID above" subtitle="We need to know who's practicing." />;
+  }
+
+  // Pre-session setup
+  if (!sessionId) {
+    const selectedApp = applications.find((a) => a.id === selectedAppId);
+    return (
+      <div style={{ background: "#fff", borderRadius: 12, padding: "20px 22px" }}>
+        <p style={{ fontFamily: "Fraunces, serif", fontSize: 18, color: colors.indigo, margin: "0 0 4px" }}>
+          Let's get you ready
+        </p>
+        <p style={{ fontFamily: "Inter, sans-serif", fontSize: 12, color: colors.faint, margin: "0 0 16px" }}>
+          Pick an application to prep for, or start a general practice session.
+        </p>
+
+        <select value={selectedAppId} onChange={(e) => setSelectedAppId(e.target.value)} style={inputStyle}>
+          <option value="">General practice (no specific job)</option>
+          {applications.map((a) => (
+            <option key={a.id} value={a.id}>{a.company} — {a.role_title}</option>
+          ))}
+        </select>
+
+        {errorMsg && (
+          <p style={{ fontFamily: "Inter, sans-serif", fontSize: 12, color: colors.terracottaText, margin: "0 0 10px" }}>
+            {errorMsg}
+          </p>
+        )}
+
+        <button
+          onClick={startSession}
+          style={{ background: colors.indigo, color: colors.cream, border: "none", borderRadius: 10, padding: "10px 20px", fontFamily: "Inter, sans-serif", fontSize: 13, fontWeight: 500, cursor: "pointer" }}
+        >
+          Start practicing
+        </button>
+      </div>
+    );
+  }
+
+  // Chat view
+  return (
+    <div style={{ background: colors.cream, borderRadius: 12, padding: "1.25rem" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+        <div>
+          <p style={{ fontFamily: "Fraunces, serif", fontSize: 18, color: colors.indigo, margin: "0 0 2px" }}>
+            Practice session
+          </p>
+          <p style={{ fontFamily: "Inter, sans-serif", fontSize: 12, color: colors.faint, margin: 0 }}>
+            {selectedAppId
+              ? applications.find((a) => a.id === selectedAppId)?.company + " — " + applications.find((a) => a.id === selectedAppId)?.role_title
+              : "General practice"}
+          </p>
+        </div>
+        <div style={{ width: 36, height: 36, borderRadius: "50%", background: colors.terracotta, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <span style={{ fontSize: 16 }}>💬</span>
+        </div>
+      </div>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 16, minHeight: 120 }}>
+        {messages.length === 0 && (
+          <p style={{ fontFamily: "Inter, sans-serif", fontSize: 12, color: colors.faint, margin: 0 }}>
+            Say hello, or ask VITA to start with a question.
+          </p>
+        )}
+        {messages.map((m) => (
+          <div
+            key={m.id}
+            style={{
+              alignSelf: m.sender === "user" ? "flex-end" : "flex-start",
+              maxWidth: "80%",
+              background: m.sender === "user" ? colors.indigo : "#fff",
+              borderRadius: 12,
+              borderBottomRightRadius: m.sender === "user" ? 4 : 12,
+              borderBottomLeftRadius: m.sender === "user" ? 12 : 4,
+              padding: "10px 14px",
+            }}
+          >
+            <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: m.sender === "user" ? colors.cream : colors.ink, lineHeight: 1.5, margin: 0 }}>
+              {m.content}
+            </p>
+          </div>
+        ))}
+        {errorMsg && (
+          <div style={{ alignSelf: "flex-start", maxWidth: "80%", background: colors.terracottaBg, borderRadius: 12, padding: "10px 14px" }}>
+            <p style={{ fontFamily: "Inter, sans-serif", fontSize: 12, color: colors.terracottaText, margin: 0 }}>
+              Couldn't get a reply: {errorMsg}
+            </p>
+          </div>
+        )}
+      </div>
+
+      <div style={{ display: "flex", gap: 8 }}>
+        <input
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && sendMessage()}
+          placeholder="Type your answer..."
+          style={{ ...inputStyle, marginBottom: 0, flex: 1 }}
+        />
+        <button
+          onClick={sendMessage}
+          disabled={sending || !input.trim()}
+          style={{ background: colors.indigo, color: colors.cream, border: "none", borderRadius: 10, padding: "0 18px", fontFamily: "Inter, sans-serif", fontSize: 13, cursor: "pointer", opacity: sending || !input.trim() ? 0.5 : 1 }}
+        >
+          {sending ? "…" : "Send"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// App shell
 export default function VitaApp() {
   const [userId, setUserId] = useState("");
   const [tab, setTab] = useState("dashboard");
@@ -850,6 +1023,7 @@ export default function VitaApp() {
           { key: "dashboard", label: "Dashboard" },
           { key: "scanner", label: "Scanner" },
           { key: "tracker", label: "Tracker" },
+          { key: "chat", label: "Interview Prep" },
           { key: "portfolio", label: "Portfolio" },
         ].map((t) => (
           <button
@@ -875,6 +1049,7 @@ export default function VitaApp() {
       {tab === "dashboard" && <Dashboard userId={userId} />}
       {tab === "scanner" && <Scanner userId={userId} />}
       {tab === "tracker" && <Tracker userId={userId} />}
+      {tab === "chat" && <InterviewChat userId={userId} />}
       {tab === "portfolio" && <Portfolio userId={userId} />}
     </div>
   );
