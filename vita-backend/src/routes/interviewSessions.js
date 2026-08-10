@@ -3,20 +3,14 @@ import pool from "../db.js";
 
 const router = express.Router();
 
-// POST /interview-sessions
-// Body: { "user_id", "application_id" (optional) }
 router.post("/", async (req, res) => {
-  const { user_id, application_id } = req.body;
-
-  if (!user_id) {
-    return res.status(400).json({ error: "user_id is required" });
-  }
+  const { application_id } = req.body;
 
   try {
     const result = await pool.query(
       `INSERT INTO interview_sessions (user_id, application_id)
        VALUES ($1, $2) RETURNING *`,
-      [user_id, application_id || null]
+      [req.userId, application_id || null]
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {
@@ -25,16 +19,13 @@ router.post("/", async (req, res) => {
   }
 });
 
-// GET /interview-sessions/:id
-// Returns the session with its full message history.
-
 router.get("/:id", async (req, res) => {
   const { id } = req.params;
 
   try {
     const sessionResult = await pool.query(
-      "SELECT * FROM interview_sessions WHERE id = $1",
-      [id]
+      "SELECT * FROM interview_sessions WHERE id = $1 AND user_id = $2",
+      [id, req.userId]
     );
     if (sessionResult.rows.length === 0) {
       return res.status(404).json({ error: "Session not found" });
@@ -52,10 +43,7 @@ router.get("/:id", async (req, res) => {
   }
 });
 
-// POST /interview-sessions/:id/messages
-// Body: { "content": "the user's answer or message" }
-// Stores the user's message, asks Claude for a reply in VITA's voice,
-// stores that reply too, and returns both.
+
 router.post("/:id/messages", async (req, res) => {
   const { id } = req.params;
   const { content } = req.body;
@@ -66,8 +54,8 @@ router.post("/:id/messages", async (req, res) => {
 
   try {
     const sessionResult = await pool.query(
-      "SELECT * FROM interview_sessions WHERE id = $1",
-      [id]
+      "SELECT * FROM interview_sessions WHERE id = $1 AND user_id = $2",
+      [id, req.userId]
     );
     if (sessionResult.rows.length === 0) {
       return res.status(404).json({ error: "Session not found" });
@@ -75,7 +63,6 @@ router.post("/:id/messages", async (req, res) => {
 
     // Load prior messages so Claude has the full conversation for context —
     // without this, every reply would ignore everything said before it.
-    
     const historyResult = await pool.query(
       "SELECT sender, content FROM interview_messages WHERE session_id = $1 ORDER BY created_at",
       [id]
@@ -86,7 +73,6 @@ router.post("/:id/messages", async (req, res) => {
       content: m.content,
     }));
 
-    // Save the user's new message first
     const userMsgResult = await pool.query(
       `INSERT INTO interview_messages (session_id, sender, content)
        VALUES ($1, 'user', $2) RETURNING id, sender, content, created_at`,
