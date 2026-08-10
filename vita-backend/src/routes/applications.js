@@ -3,17 +3,11 @@ import pool from "../db.js";
 
 const router = express.Router();
 
-// ─────────────────────────────────────────
-// POST /applications
-// Body: { "user_id", "job_posting_id", "resume_id" (optional), "status" (optional) }
-// ─────────────────────────────────────────
 router.post("/", async (req, res) => {
-  const { user_id, job_posting_id, resume_id, status } = req.body;
+  const { job_posting_id, resume_id, status } = req.body;
 
-  if (!user_id || !job_posting_id) {
-    return res
-      .status(400)
-      .json({ error: "user_id and job_posting_id are required" });
+  if (!job_posting_id) {
+    return res.status(400).json({ error: "job_posting_id is required" });
   }
 
   try {
@@ -21,7 +15,7 @@ router.post("/", async (req, res) => {
       `INSERT INTO applications (user_id, job_posting_id, resume_id, status)
        VALUES ($1, $2, $3, COALESCE($4, 'saved'))
        RETURNING *`,
-      [user_id, job_posting_id, resume_id || null, status || null]
+      [req.userId, job_posting_id, resume_id || null, status || null]
     );
 
     res.status(201).json(result.rows[0]);
@@ -31,24 +25,9 @@ router.post("/", async (req, res) => {
   }
 });
 
-// ─────────────────────────────────────────
-// GET /applications?user_id=uuid
-// Returns the tracker list: company, role, status, match score
-// (from the most recent scan for that resume+posting, if any),
-// and the most relevant upcoming date.
-// ─────────────────────────────────────────
+
 router.get("/", async (req, res) => {
-  const { user_id } = req.query;
-
-  if (!user_id) {
-    return res.status(400).json({ error: "user_id query param is required" });
-  }
-
   try {
-    // This joins across applications -> job_postings for company/role,
-    // and pulls the latest scan's match_score for that same resume+posting
-    // pair via a LATERAL subquery — it runs once per application row,
-    // grabbing just the most recent matching scan instead of all of them.
     const result = await pool.query(
       `SELECT
          a.id, a.status, a.applied_at, a.interview_at, a.deadline_at, a.notes, a.created_at,
@@ -66,7 +45,7 @@ router.get("/", async (req, res) => {
        ) latest_scan ON true
        WHERE a.user_id = $1
        ORDER BY a.created_at DESC`,
-      [user_id]
+      [req.userId]
     );
 
     res.json(result.rows);
@@ -76,10 +55,7 @@ router.get("/", async (req, res) => {
   }
 });
 
-// ─────────────────────────────────────────
-// PATCH /applications/:id
-// Updates status and/or dates — e.g. moving from "applied" to "interviewing"
-// ─────────────────────────────────────────
+
 router.patch("/:id", async (req, res) => {
   const { id } = req.params;
   const { status, applied_at, interview_at, deadline_at, notes } = req.body;
@@ -92,9 +68,9 @@ router.patch("/:id", async (req, res) => {
          interview_at = COALESCE($3, interview_at),
          deadline_at = COALESCE($4, deadline_at),
          notes = COALESCE($5, notes)
-       WHERE id = $6
+       WHERE id = $6 AND user_id = $7
        RETURNING *`,
-      [status, applied_at, interview_at, deadline_at, notes, id]
+      [status, applied_at, interview_at, deadline_at, notes, id, req.userId]
     );
 
     if (result.rows.length === 0) {
