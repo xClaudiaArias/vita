@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 
-// VITA brand tokens
+// ── VITA brand tokens ─────────────────────────────
 const colors = {
   cream: "#F2E9E4",
   indigo: "#0F0080",
@@ -25,7 +25,27 @@ const statusStyles = {
 
 const API_BASE = "http://localhost:4000";
 
-// Small building blocks
+// Reads the saved token and calls the API with it attached automatically,
+// so individual components never have to think about auth headers.
+// Throws on any non-2xx response so callers can catch() a single error path.
+async function apiFetch(path, options = {}) {
+  const token = localStorage.getItem("vita_token");
+  const res = await fetch(`${API_BASE}${path}`, {
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(options.headers || {}),
+    },
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(data.error || `Request failed (${res.status})`);
+  }
+  return data;
+}
+
+// ── Small building blocks ─────────────────────────
 function Pill({ bg, color, children }) {
   return (
     <span
@@ -64,34 +84,27 @@ function EmptyState({ title, subtitle }) {
   );
 }
 
-// Tracker view
-function Tracker({ userId }) {
+// ── Tracker view ──────────────────────────────────
+function Tracker() {
   const [applications, setApplications] = useState([]);
   const [status, setStatus] = useState("idle"); // idle | loading | error | ready
   const [errorMsg, setErrorMsg] = useState("");
 
   const load = useCallback(async () => {
-    if (!userId) return;
     setStatus("loading");
     try {
-      const res = await fetch(`${API_BASE}/applications?user_id=${userId}`);
-      if (!res.ok) throw new Error(`Server responded ${res.status}`);
-      const data = await res.json();
+      const data = await apiFetch("/applications");
       setApplications(data);
       setStatus("ready");
     } catch (err) {
       setErrorMsg(err.message);
       setStatus("error");
     }
-  }, [userId]);
+  }, []);
 
   useEffect(() => {
     load();
   }, [load]);
-
-  if (!userId) {
-    return <EmptyState title="Paste a user ID above" subtitle="We need to know whose applications to load." />;
-  }
 
   if (status === "loading" || status === "idle") {
     return <EmptyState title="Loading your applications…" subtitle="Just a moment." />;
@@ -156,34 +169,28 @@ function Tracker({ userId }) {
   );
 }
 
-// Portfolio view
-function Portfolio({ userId }) {
+// ── Portfolio view ────────────────────────────────
+function Portfolio() {
   const [projects, setProjects] = useState([]);
   const [status, setStatus] = useState("idle");
   const [errorMsg, setErrorMsg] = useState("");
 
   const load = useCallback(async () => {
-    if (!userId) return;
     setStatus("loading");
     try {
-      const res = await fetch(`${API_BASE}/projects?user_id=${userId}`);
-      if (!res.ok) throw new Error(`Server responded ${res.status}`);
-      const data = await res.json();
+      const data = await apiFetch("/projects");
       setProjects(data);
       setStatus("ready");
     } catch (err) {
       setErrorMsg(err.message);
       setStatus("error");
     }
-  }, [userId]);
+  }, []);
 
   useEffect(() => {
     load();
   }, [load]);
 
-  if (!userId) {
-    return <EmptyState title="Paste a user ID above" subtitle="We need to know whose portfolio to load." />;
-  }
   if (status === "loading" || status === "idle") {
     return <EmptyState title="Loading your projects…" subtitle="Just a moment." />;
   }
@@ -235,8 +242,8 @@ function Portfolio({ userId }) {
   );
 }
 
-// Resume Scanner view
-function Scanner({ userId }) {
+// ── Resume Scanner view ───────────────────────────
+function Scanner() {
   const [step, setStep] = useState("input"); // input | scanning | results | confirmation | editor | error
   const [resumes, setResumes] = useState([]);
   const [selectedResumeId, setSelectedResumeId] = useState("");
@@ -252,34 +259,24 @@ function Scanner({ userId }) {
   const [openReasonId, setOpenReasonId] = useState(null);
 
   useEffect(() => {
-    if (!userId) return;
-    fetch(`${API_BASE}/resumes?user_id=${userId}`)
-      .then((r) => r.json())
-      .then(setResumes)
-      .catch(() => {});
-  }, [userId]);
+    apiFetch("/resumes").then(setResumes).catch(() => {});
+  }, []);
 
   const runScan = async () => {
     setStep("scanning");
     setErrorMsg("");
     try {
       // First store the job posting
-      const jobRes = await fetch(`${API_BASE}/job-postings`, {
+      const job = await apiFetch("/job-postings", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ company, role_title: roleTitle, raw_description: description }),
       });
-      const job = await jobRes.json();
-      if (!jobRes.ok) throw new Error(job.error || "Couldn't save job posting");
 
       // Then run the scan against the selected resume
-      const scanRes = await fetch(`${API_BASE}/scans`, {
+      const scanData = await apiFetch("/scans", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ resume_id: selectedResumeId, job_posting_id: job.id }),
       });
-      const scanData = await scanRes.json();
-      if (!scanRes.ok) throw new Error(scanData.error || "Scan failed");
 
       setScan(scanData);
       setStep("results");
@@ -290,9 +287,8 @@ function Scanner({ userId }) {
   };
 
   const handleSuggestion = async (suggestionId, action) => {
-    await fetch(`${API_BASE}/scans/suggestions/${suggestionId}`, {
+    await apiFetch(`/scans/suggestions/${suggestionId}`, {
       method: "PATCH",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action }),
     });
     setScan((prev) => ({
@@ -306,9 +302,7 @@ function Scanner({ userId }) {
   const loadResume = async (resumeId) => {
     setResumeStatus("loading");
     try {
-      const res = await fetch(`${API_BASE}/resumes/${resumeId}`);
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Couldn't load resume");
+      const data = await apiFetch(`/resumes/${resumeId}`);
       setResumeDetail(data);
       setResumeStatus("ready");
     } catch (err) {
@@ -317,20 +311,15 @@ function Scanner({ userId }) {
   };
 
   const saveBulletEdit = async (bulletId) => {
-    await fetch(`${API_BASE}/resumes/bullets/${bulletId}`, {
+    await apiFetch(`/resumes/bullets/${bulletId}`, {
       method: "PATCH",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ content: draftText }),
     });
     setEditingBulletId(null);
     loadResume(selectedResumeId);
   };
 
-  if (!userId) {
-    return <EmptyState title="Paste a user ID above" subtitle="We need to know whose resume to scan." />;
-  }
-
-  // Job input step
+  // ── Job input step ──
   if (step === "input" || step === "scanning") {
     return (
       <div style={{ background: "#fff", borderRadius: 12, padding: "20px 22px" }}>
@@ -398,7 +387,7 @@ function Scanner({ userId }) {
     );
   }
 
-  // Error step (e.g. AI credits not available yet)
+  // ── Error step (e.g. AI credits not available yet) ──
   if (step === "error") {
     return (
       <div style={{ background: "#fff", borderRadius: 12, padding: "20px 22px" }}>
@@ -418,7 +407,7 @@ function Scanner({ userId }) {
     );
   }
 
-  // Confirmation step
+  // ── Confirmation step ──
   if (step === "confirmation") {
     return (
       <ScannerConfirmation
@@ -433,7 +422,7 @@ function Scanner({ userId }) {
     );
   }
 
-  // Editor step
+  // ── Editor step ──
   if (step === "editor") {
     return (
       <ResumeEditor
@@ -450,7 +439,7 @@ function Scanner({ userId }) {
     );
   }
 
-  // Results step
+  // ── Results step ──
   return (
     <div style={{ background: colors.cream, borderRadius: 12, padding: "1.25rem" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
@@ -681,19 +670,16 @@ const inputStyle = {
   display: "block",
 };
 
-// Dashboard view────────
-function Dashboard({ userId }) {
+// ── Dashboard view ─────────────────────────────────
+function Dashboard() {
   const [data, setData] = useState(null);
   const [status, setStatus] = useState("idle");
   const [errorMsg, setErrorMsg] = useState("");
 
   useEffect(() => {
-    if (!userId) return;
     setStatus("loading");
-    fetch(`${API_BASE}/dashboard?user_id=${userId}`)
-      .then(async (r) => {
-        const body = await r.json();
-        if (!r.ok) throw new Error(body.error || "Failed to load dashboard");
+    apiFetch("/dashboard")
+      .then((body) => {
         setData(body);
         setStatus("ready");
       })
@@ -701,11 +687,8 @@ function Dashboard({ userId }) {
         setErrorMsg(err.message);
         setStatus("error");
       });
-  }, [userId]);
+  }, []);
 
-  if (!userId) {
-    return <EmptyState title="Paste a user ID above" subtitle="We need to know whose dashboard to load." />;
-  }
   if (status === "loading" || status === "idle") {
     return <EmptyState title="Loading your dashboard…" subtitle="Just a moment." />;
   }
@@ -813,8 +796,8 @@ function Dashboard({ userId }) {
   );
 }
 
-// Interview Chatbot view──────────────────────
-function InterviewChat({ userId }) {
+// ── Interview Chatbot view ────────────────────────
+function InterviewChat() {
   const [applications, setApplications] = useState([]);
   const [selectedAppId, setSelectedAppId] = useState("");
   const [sessionId, setSessionId] = useState(null);
@@ -824,23 +807,16 @@ function InterviewChat({ userId }) {
   const [errorMsg, setErrorMsg] = useState("");
 
   useEffect(() => {
-    if (!userId) return;
-    fetch(`${API_BASE}/applications?user_id=${userId}`)
-      .then((r) => r.json())
-      .then(setApplications)
-      .catch(() => {});
-  }, [userId]);
+    apiFetch("/applications").then(setApplications).catch(() => {});
+  }, []);
 
   const startSession = async () => {
     setErrorMsg("");
     try {
-      const res = await fetch(`${API_BASE}/interview-sessions`, {
+      const data = await apiFetch("/interview-sessions", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ user_id: userId, application_id: selectedAppId || null }),
+        body: JSON.stringify({ application_id: selectedAppId || null }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Couldn't start session");
       setSessionId(data.id);
       setMessages([]);
     } catch (err) {
@@ -860,13 +836,10 @@ function InterviewChat({ userId }) {
     setSending(true);
 
     try {
-      const res = await fetch(`${API_BASE}/interview-sessions/${sessionId}/messages`, {
+      const data = await apiFetch(`/interview-sessions/${sessionId}/messages`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ content: text }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Couldn't get a reply");
       setMessages((prev) => [...prev, data.vita_message]);
     } catch (err) {
       setErrorMsg(err.message);
@@ -875,11 +848,7 @@ function InterviewChat({ userId }) {
     }
   };
 
-  if (!userId) {
-    return <EmptyState title="Paste a user ID above" subtitle="We need to know who's practicing." />;
-  }
-
-  // Pre-session setup
+  // ── Pre-session setup ──
   if (!sessionId) {
     const selectedApp = applications.find((a) => a.id === selectedAppId);
     return (
@@ -914,7 +883,7 @@ function InterviewChat({ userId }) {
     );
   }
 
-  // Chat view
+  // ── Chat view ──
   return (
     <div style={{ background: colors.cream, borderRadius: 12, padding: "1.25rem" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
@@ -986,39 +955,144 @@ function InterviewChat({ userId }) {
   );
 }
 
-// App shell
+// ── Auth screen (login / signup) ──────────────────
+function AuthScreen({ onAuthenticated }) {
+  const [mode, setMode] = useState("login"); // login | signup
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [name, setName] = useState("");
+  const [errorMsg, setErrorMsg] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  const submit = async () => {
+    setErrorMsg("");
+    setSubmitting(true);
+    try {
+      const path = mode === "login" ? "/auth/login" : "/auth/signup";
+      const body = mode === "login" ? { email, password } : { email, password, name };
+      const data = await apiFetch(path, { method: "POST", body: JSON.stringify(body) });
+      localStorage.setItem("vita_token", data.token);
+      onAuthenticated(data.user);
+    } catch (err) {
+      setErrorMsg(err.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div style={{ background: colors.cream, minHeight: 500, padding: 24, borderRadius: 16, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500&family=Fraunces:wght@500&display=swap" rel="stylesheet" />
+      <div style={{ background: "#fff", borderRadius: 12, padding: "28px 26px", width: "100%", maxWidth: 340 }}>
+        <p style={{ fontFamily: "Fraunces, serif", fontSize: 22, color: colors.indigo, margin: "0 0 4px" }}>Vita</p>
+        <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: colors.faint, margin: "0 0 20px" }}>
+          {mode === "login" ? "Welcome back." : "Let's get you set up."}
+        </p>
+
+        {mode === "signup" && (
+          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Full name" style={inputStyle} />
+        )}
+        <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" style={inputStyle} />
+        <input value={password} onChange={(e) => setPassword(e.target.value)} type="password" placeholder="Password" style={inputStyle} />
+
+        {errorMsg && (
+          <p style={{ fontFamily: "Inter, sans-serif", fontSize: 12, color: colors.terracottaText, margin: "0 0 10px" }}>
+            {errorMsg}
+          </p>
+        )}
+
+        <button
+          onClick={submit}
+          disabled={submitting || !email || !password || (mode === "signup" && !name)}
+          style={{
+            width: "100%",
+            background: colors.indigo,
+            color: colors.cream,
+            border: "none",
+            borderRadius: 10,
+            padding: "10px 0",
+            fontFamily: "Inter, sans-serif",
+            fontSize: 13,
+            fontWeight: 500,
+            cursor: "pointer",
+            marginBottom: 12,
+            opacity: submitting ? 0.6 : 1,
+          }}
+        >
+          {submitting ? "…" : mode === "login" ? "Log in" : "Create account"}
+        </button>
+
+        <p style={{ fontFamily: "Inter, sans-serif", fontSize: 12, color: colors.faint, margin: 0, textAlign: "center" }}>
+          {mode === "login" ? "New here?" : "Already have an account?"}{" "}
+          <span
+            onClick={() => { setMode(mode === "login" ? "signup" : "login"); setErrorMsg(""); }}
+            style={{ color: colors.indigo, cursor: "pointer", fontWeight: 500 }}
+          >
+            {mode === "login" ? "Create an account" : "Log in"}
+          </span>
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// ── App shell ──────────────────────────────────────
 export default function VitaApp() {
-  const [userId, setUserId] = useState("");
   const [tab, setTab] = useState("dashboard");
+  const [user, setUser] = useState(null);
+  const [checkingAuth, setCheckingAuth] = useState(true);
+
+  // On load, check if a saved token still works — keeps you logged in
+  // across page refreshes instead of forcing a fresh login every time.
+  useEffect(() => {
+    const token = localStorage.getItem("vita_token");
+    if (!token) {
+      setCheckingAuth(false);
+      return;
+    }
+    apiFetch("/auth/me")
+      .then(setUser)
+      .catch(() => localStorage.removeItem("vita_token"))
+      .finally(() => setCheckingAuth(false));
+  }, []);
+
+  const logout = () => {
+    localStorage.removeItem("vita_token");
+    setUser(null);
+  };
+
+  if (checkingAuth) {
+    return (
+      <div style={{ background: colors.cream, minHeight: 500, padding: 24, borderRadius: 16 }}>
+        <EmptyState title="Loading…" subtitle="Just a moment." />
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <AuthScreen onAuthenticated={setUser} />;
+  }
 
   return (
     <div style={{ background: colors.cream, minHeight: 500, padding: 24, borderRadius: 16 }}>
       <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500&family=Fraunces:wght@500&display=swap" rel="stylesheet" />
 
-      <p style={{ fontFamily: "Fraunces, serif", fontSize: 22, fontWeight: 500, color: colors.indigo, margin: "0 0 16px" }}>
-        Vita
-      </p>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+        <p style={{ fontFamily: "Fraunces, serif", fontSize: 22, fontWeight: 500, color: colors.indigo, margin: 0 }}>
+          Vita
+        </p>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <span style={{ fontFamily: "Inter, sans-serif", fontSize: 12, color: colors.muted }}>{user.name}</span>
+          <button
+            onClick={logout}
+            style={{ background: "transparent", border: `0.5px solid ${colors.border}`, borderRadius: 20, padding: "4px 12px", fontFamily: "Inter, sans-serif", fontSize: 11, color: colors.faint, cursor: "pointer" }}
+          >
+            Log out
+          </button>
+        </div>
+      </div>
 
-      <input
-        value={userId}
-        onChange={(e) => setUserId(e.target.value)}
-        placeholder="Paste your user ID"
-        style={{
-          width: "100%",
-          border: `0.5px solid ${colors.border}`,
-          borderRadius: 10,
-          padding: "10px 14px",
-          fontFamily: "Inter, sans-serif",
-          fontSize: 13,
-          marginBottom: 16,
-          outline: "none",
-          boxSizing: "border-box",
-          background: "#fff",
-          color: colors.ink,
-        }}
-      />
-
-      <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+      <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
         {[
           { key: "dashboard", label: "Dashboard" },
           { key: "scanner", label: "Scanner" },
@@ -1046,11 +1120,11 @@ export default function VitaApp() {
         ))}
       </div>
 
-      {tab === "dashboard" && <Dashboard userId={userId} />}
-      {tab === "scanner" && <Scanner userId={userId} />}
-      {tab === "tracker" && <Tracker userId={userId} />}
-      {tab === "chat" && <InterviewChat userId={userId} />}
-      {tab === "portfolio" && <Portfolio userId={userId} />}
+      {tab === "dashboard" && <Dashboard />}
+      {tab === "scanner" && <Scanner />}
+      {tab === "tracker" && <Tracker />}
+      {tab === "chat" && <InterviewChat />}
+      {tab === "portfolio" && <Portfolio />}
     </div>
   );
 }
