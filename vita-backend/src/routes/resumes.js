@@ -5,12 +5,17 @@ const router = express.Router();
 
 
 router.post("/", async (req, res) => {
-  const { user_id, label, sections } = req.body;
+  const { label, sections } = req.body;
+  const userId = req.userId; // from the verified token, not the request body
 
-  if (!user_id || !label) {
-    return res.status(400).json({ error: "user_id and label are required" });
+  if (!label) {
+    return res.status(400).json({ error: "label is required" });
   }
 
+  // We use a "client" (not the shared pool) here because we need several
+  // queries to succeed or fail together as one transaction — if inserting
+  // a bullet fails halfway through, we don't want a half-created resume
+  // left behind in the database.
   const client = await pool.connect();
 
   try {
@@ -18,7 +23,7 @@ router.post("/", async (req, res) => {
 
     const resumeResult = await client.query(
       "INSERT INTO resumes (user_id, label) VALUES ($1, $2) RETURNING id",
-      [user_id, label]
+      [userId, label]
     );
     const resumeId = resumeResult.rows[0].id;
 
@@ -52,16 +57,10 @@ router.post("/", async (req, res) => {
 
 
 router.get("/", async (req, res) => {
-  const { user_id } = req.query;
-
-  if (!user_id) {
-    return res.status(400).json({ error: "user_id query param is required" });
-  }
-
   try {
     const result = await pool.query(
       "SELECT id, label, updated_at FROM resumes WHERE user_id = $1 ORDER BY updated_at DESC",
-      [user_id]
+      [req.userId]
     );
     res.json(result.rows);
   } catch (err) {
@@ -70,7 +69,11 @@ router.get("/", async (req, res) => {
   }
 });
 
-
+// ─────────────────────────────────────────
+// PATCH /resumes/bullets/:bulletId
+// Directly edits a bullet's content — used when the person manually
+// edits a line in the resume editor (not via an AI suggestion).
+// ─────────────────────────────────────────
 router.patch("/bullets/:bulletId", async (req, res) => {
   const { bulletId } = req.params;
   const { content } = req.body;
@@ -80,10 +83,15 @@ router.patch("/bullets/:bulletId", async (req, res) => {
   }
 
   try {
+    // Join through sections -> resumes to confirm this bullet actually
+    // belongs to the logged-in user before allowing the edit — otherwise
+    // a valid token would let someone edit ANY bullet by guessing its ID.
     const result = await pool.query(
-      `UPDATE resume_bullets SET content = $1, last_edited_at = now()
-       WHERE id = $2 RETURNING *`,
-      [content, bulletId]
+      `UPDATE resume_bullets b SET content = $1, last_edited_at = now()
+       FROM resume_sections s, resumes r
+       WHERE b.id = $2 AND b.section_id = s.id AND s.resume_id = r.id AND r.user_id = $3
+       RETURNING b.*`,
+      [content, bulletId, req.userId]
     );
 
     if (result.rows.length === 0) {
@@ -97,15 +105,13 @@ router.patch("/bullets/:bulletId", async (req, res) => {
 });
 
 
-// Fetches a resume with its sections and bullets nested,
-// matching the shape the frontend editor needs.
 router.get("/:id", async (req, res) => {
   const { id } = req.params;
 
   try {
     const resumeResult = await pool.query(
-      "SELECT id, user_id, label, updated_at FROM resumes WHERE id = $1",
-      [id]
+      "SELECT id, user_id, label, updated_at FROM resumes WHERE id = $1 AND user_id = $2",
+      [id, req.userId]
     );
 
     if (resumeResult.rows.length === 0) {
@@ -114,7 +120,9 @@ router.get("/:id", async (req, res) => {
 
     const resume = resumeResult.rows[0];
 
-    // One query joining sections + bullets is more efficient than looping queries per section — this returns one row per bullet, ordered
+    // One query joining sections + bullets is more efficient than looping
+    // queries per section — this returns one row per bullet, ordered
+    // correctly, and we reassemble it into a nested shape below.
     const rowsResult = await pool.query(
       `SELECT
          s.id AS section_id, s.type AS section_type, s.sort_order AS section_order,
@@ -127,7 +135,7 @@ router.get("/:id", async (req, res) => {
       [id]
     );
 
-  
+    // Reassemble the flat rows into { sections: [ { bullets: [...] } ] }
     const sectionsMap = new Map();
     for (const row of rowsResult.rows) {
       if (!sectionsMap.has(row.section_id)) {
