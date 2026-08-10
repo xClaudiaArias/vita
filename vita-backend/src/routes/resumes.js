@@ -69,11 +69,7 @@ router.get("/", async (req, res) => {
   }
 });
 
-// ─────────────────────────────────────────
-// PATCH /resumes/bullets/:bulletId
-// Directly edits a bullet's content — used when the person manually
-// edits a line in the resume editor (not via an AI suggestion).
-// ─────────────────────────────────────────
+
 router.patch("/bullets/:bulletId", async (req, res) => {
   const { bulletId } = req.params;
   const { content } = req.body;
@@ -135,7 +131,7 @@ router.get("/:id", async (req, res) => {
       [id]
     );
 
-    // Reassemble the flat rows into { sections: [ { bullets: [...] } ] }
+
     const sectionsMap = new Map();
     for (const row of rowsResult.rows) {
       if (!sectionsMap.has(row.section_id)) {
