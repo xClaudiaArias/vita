@@ -956,8 +956,8 @@ function InterviewChat() {
 }
 
 // ── Auth screen (login / signup) ──────────────────
-function AuthScreen({ onAuthenticated }) {
-  const [mode, setMode] = useState("login"); // login | signup
+function AuthScreen({ onAuthenticated, initialMode = "login", onBack }) {
+  const [mode, setMode] = useState(initialMode);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
@@ -984,6 +984,11 @@ function AuthScreen({ onAuthenticated }) {
     <div style={{ background: colors.cream, minHeight: 500, padding: 24, borderRadius: 16, display: "flex", alignItems: "center", justifyContent: "center" }}>
       <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500&family=Fraunces:wght@500&display=swap" rel="stylesheet" />
       <div style={{ background: "#fff", borderRadius: 12, padding: "28px 26px", width: "100%", maxWidth: 340 }}>
+        {onBack && (
+          <p onClick={onBack} style={{ fontFamily: "Inter, sans-serif", fontSize: 12, color: colors.faint, margin: "0 0 14px", cursor: "pointer" }}>
+            ← Back
+          </p>
+        )}
         <p style={{ fontFamily: "Fraunces, serif", fontSize: 22, color: colors.indigo, margin: "0 0 4px" }}>Vita</p>
         <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: colors.faint, margin: "0 0 20px" }}>
           {mode === "login" ? "Welcome back." : "Let's get you set up."}
@@ -1036,11 +1041,236 @@ function AuthScreen({ onAuthenticated }) {
   );
 }
 
+// ── Landing page ───────────────────────────────────
+const features = [
+  {
+    icon: "📝",
+    title: "Resume Scanner",
+    description: "Paste any job posting and get specific, encouraging suggestions to tailor your resume — with the reasoning behind every change.",
+  },
+  {
+    icon: "🏠",
+    title: "Dashboard",
+    description: "One calm home base for your streak, weekly goals, upcoming interviews, and what's new — no overwhelming metric walls.",
+  },
+  {
+    icon: "📋",
+    title: "Application Tracker",
+    description: "Track every application's status without it feeling like a spreadsheet. Closed applications quietly fade so you can move on.",
+  },
+  {
+    icon: "💬",
+    title: "Interview Prep",
+    description: "Practice real questions with a coach that leads with what worked, then offers one specific way to improve — never a wall of criticism.",
+  },
+  {
+    icon: "✨",
+    title: "Portfolio",
+    description: "A shareable profile that showcases your projects and story, ready to send alongside any application.",
+  },
+];
+
+function LandingPage({ onGetStarted, onLogin }) {
+  return (
+    <div style={{ background: colors.cream, borderRadius: 16, overflow: "hidden" }}>
+      <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Fraunces:wght@500;600&display=swap" rel="stylesheet" />
+
+      {/* Nav bar */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "20px 28px" }}>
+        <p style={{ fontFamily: "Fraunces, serif", fontSize: 20, fontWeight: 600, color: colors.indigo, margin: 0 }}>
+          Vita
+        </p>
+        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+          <span
+            onClick={onLogin}
+            style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: colors.muted, cursor: "pointer" }}
+          >
+            Log in
+          </span>
+          <button
+            onClick={onGetStarted}
+            style={{
+              background: colors.indigo,
+              color: colors.cream,
+              border: "none",
+              borderRadius: 20,
+              padding: "8px 18px",
+              fontFamily: "Inter, sans-serif",
+              fontSize: 13,
+              fontWeight: 500,
+              cursor: "pointer",
+            }}
+          >
+            Get started
+          </button>
+        </div>
+      </div>
+
+      {/* Hero */}
+      <div style={{ textAlign: "center", padding: "48px 28px 56px" }}>
+        <p
+          style={{
+            fontFamily: "Fraunces, serif",
+            fontSize: 38,
+            fontWeight: 600,
+            color: colors.indigo,
+            lineHeight: 1.15,
+            margin: "0 auto 16px",
+            maxWidth: 560,
+          }}
+        >
+          Your calm companion for the job search
+        </p>
+        <p
+          style={{
+            fontFamily: "Inter, sans-serif",
+            fontSize: 15,
+            color: colors.muted,
+            lineHeight: 1.6,
+            margin: "0 auto 28px",
+            maxWidth: 460,
+          }}
+        >
+          Tailor your resume, track every application, prep for interviews, and showcase your work —
+          all in one place that feels like it's actually on your side.
+        </p>
+        <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
+          <button
+            onClick={onGetStarted}
+            style={{
+              background: colors.indigo,
+              color: colors.cream,
+              border: "none",
+              borderRadius: 10,
+              padding: "12px 26px",
+              fontFamily: "Inter, sans-serif",
+              fontSize: 14,
+              fontWeight: 500,
+              cursor: "pointer",
+            }}
+          >
+            Get started — it's free
+          </button>
+          <button
+            onClick={onLogin}
+            style={{
+              background: "#fff",
+              color: colors.indigo,
+              border: `0.5px solid ${colors.border}`,
+              borderRadius: 10,
+              padding: "12px 26px",
+              fontFamily: "Inter, sans-serif",
+              fontSize: 14,
+              fontWeight: 500,
+              cursor: "pointer",
+            }}
+          >
+            I already have an account
+          </button>
+        </div>
+      </div>
+
+      {/* Features */}
+      <div style={{ background: "#fff", padding: "44px 28px" }}>
+        <p
+          style={{
+            fontFamily: "Fraunces, serif",
+            fontSize: 22,
+            fontWeight: 600,
+            color: colors.indigo,
+            textAlign: "center",
+            margin: "0 0 8px",
+          }}
+        >
+          Everything the job hunt actually needs
+        </p>
+        <p
+          style={{
+            fontFamily: "Inter, sans-serif",
+            fontSize: 13,
+            color: colors.faint,
+            textAlign: "center",
+            margin: "0 auto 32px",
+            maxWidth: 420,
+          }}
+        >
+          Five tools, one consistent, encouraging experience — nothing here is designed to make you feel behind.
+        </p>
+
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+            gap: 16,
+          }}
+        >
+          {features.map((f) => (
+            <div
+              key={f.title}
+              style={{
+                background: colors.cream,
+                borderRadius: 12,
+                padding: "20px 18px",
+              }}
+            >
+              <div
+                style={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: 10,
+                  background: colors.lavenderBg,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: 18,
+                  marginBottom: 12,
+                }}
+              >
+                {f.icon}
+              </div>
+              <p style={{ fontFamily: "Inter, sans-serif", fontSize: 14, fontWeight: 600, color: colors.ink, margin: "0 0 6px" }}>
+                {f.title}
+              </p>
+              <p style={{ fontFamily: "Inter, sans-serif", fontSize: 12, color: colors.muted, lineHeight: 1.55, margin: 0 }}>
+                {f.description}
+              </p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Closing CTA */}
+      <div style={{ textAlign: "center", padding: "40px 28px" }}>
+        <p style={{ fontFamily: "Fraunces, serif", fontSize: 20, color: colors.indigo, margin: "0 0 16px" }}>
+          Ready to feel a little less alone in this?
+        </p>
+        <button
+          onClick={onGetStarted}
+          style={{
+            background: colors.indigo,
+            color: colors.cream,
+            border: "none",
+            borderRadius: 10,
+            padding: "12px 28px",
+            fontFamily: "Inter, sans-serif",
+            fontSize: 14,
+            fontWeight: 500,
+            cursor: "pointer",
+          }}
+        >
+          Get started — it's free
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ── App shell ──────────────────────────────────────
 export default function VitaApp() {
   const [tab, setTab] = useState("dashboard");
   const [user, setUser] = useState(null);
   const [checkingAuth, setCheckingAuth] = useState(true);
+  const [authView, setAuthView] = useState("landing"); // landing | login | signup
 
   // On load, check if a saved token still works — keeps you logged in
   // across page refreshes instead of forcing a fresh login every time.
@@ -1070,7 +1300,21 @@ export default function VitaApp() {
   }
 
   if (!user) {
-    return <AuthScreen onAuthenticated={setUser} />;
+    if (authView === "landing") {
+      return (
+        <LandingPage
+          onGetStarted={() => setAuthView("signup")}
+          onLogin={() => setAuthView("login")}
+        />
+      );
+    }
+    return (
+      <AuthScreen
+        initialMode={authView}
+        onAuthenticated={setUser}
+        onBack={() => setAuthView("landing")}
+      />
+    );
   }
 
   return (
