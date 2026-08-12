@@ -1041,6 +1041,250 @@ function AuthScreen({ onAuthenticated, initialMode = "login", onBack }) {
   );
 }
 
+// ── Resumes view (list + create) ──────────────────
+const SECTION_TYPES = ["summary", "experience", "skills", "education"];
+
+function CreateResumeForm({ onCreated, onCancel }) {
+  const [label, setLabel] = useState("");
+  const [sections, setSections] = useState([
+    { type: "summary", bullets: [""] },
+  ]);
+  const [submitting, setSubmitting] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
+
+  const updateBullet = (sIdx, bIdx, value) => {
+    setSections((prev) => {
+      const next = [...prev];
+      next[sIdx] = { ...next[sIdx], bullets: [...next[sIdx].bullets] };
+      next[sIdx].bullets[bIdx] = value;
+      return next;
+    });
+  };
+
+  const addBullet = (sIdx) => {
+    setSections((prev) => {
+      const next = [...prev];
+      next[sIdx] = { ...next[sIdx], bullets: [...next[sIdx].bullets, ""] };
+      return next;
+    });
+  };
+
+  const removeBullet = (sIdx, bIdx) => {
+    setSections((prev) => {
+      const next = [...prev];
+      next[sIdx] = { ...next[sIdx], bullets: next[sIdx].bullets.filter((_, i) => i !== bIdx) };
+      return next;
+    });
+  };
+
+  const updateSectionType = (sIdx, type) => {
+    setSections((prev) => {
+      const next = [...prev];
+      next[sIdx] = { ...next[sIdx], type };
+      return next;
+    });
+  };
+
+  const addSection = () => {
+    setSections((prev) => [...prev, { type: "experience", bullets: [""] }]);
+  };
+
+  const removeSection = (sIdx) => {
+    setSections((prev) => prev.filter((_, i) => i !== sIdx));
+  };
+
+  const submit = async () => {
+    setErrorMsg("");
+    if (!label.trim()) {
+      setErrorMsg("Give this resume a name first.");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      // Drop empty bullet lines before sending — no reason to store blanks
+      const cleanedSections = sections
+        .map((s) => ({ ...s, bullets: s.bullets.map((b) => b.trim()).filter(Boolean) }))
+        .filter((s) => s.bullets.length > 0);
+
+      await apiFetch("/resumes", {
+        method: "POST",
+        body: JSON.stringify({ label: label.trim(), sections: cleanedSections }),
+      });
+      onCreated();
+    } catch (err) {
+      setErrorMsg(err.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div style={{ background: "#fff", borderRadius: 12, padding: "20px 22px" }}>
+      <p style={{ fontFamily: "Fraunces, serif", fontSize: 18, color: colors.indigo, margin: "0 0 4px" }}>
+        New resume
+      </p>
+      <p style={{ fontFamily: "Inter, sans-serif", fontSize: 12, color: colors.faint, margin: "0 0 16px" }}>
+        Give it a name and add your sections — you can always edit lines later.
+      </p>
+
+      <input
+        value={label}
+        onChange={(e) => setLabel(e.target.value)}
+        placeholder="Resume name, e.g. Product Design"
+        style={inputStyle}
+      />
+
+      {sections.map((section, sIdx) => (
+        <div key={sIdx} style={{ background: colors.cream, borderRadius: 10, padding: "12px 14px", marginBottom: 10 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+            <select
+              value={section.type}
+              onChange={(e) => updateSectionType(sIdx, e.target.value)}
+              style={{ ...inputStyle, marginBottom: 0, width: "auto", padding: "6px 10px", fontSize: 12 }}
+            >
+              {SECTION_TYPES.map((t) => (
+                <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>
+              ))}
+            </select>
+            {sections.length > 1 && (
+              <span
+                onClick={() => removeSection(sIdx)}
+                style={{ fontFamily: "Inter, sans-serif", fontSize: 11, color: colors.faint, cursor: "pointer" }}
+              >
+                Remove section
+              </span>
+            )}
+          </div>
+
+          {section.bullets.map((bullet, bIdx) => (
+            <div key={bIdx} style={{ display: "flex", gap: 6, marginBottom: 6 }}>
+              <input
+                value={bullet}
+                onChange={(e) => updateBullet(sIdx, bIdx, e.target.value)}
+                placeholder="Add a line..."
+                style={{ ...inputStyle, marginBottom: 0, flex: 1, background: "#fff" }}
+              />
+              {section.bullets.length > 1 && (
+                <span
+                  onClick={() => removeBullet(sIdx, bIdx)}
+                  style={{ fontFamily: "Inter, sans-serif", fontSize: 16, color: colors.faint, cursor: "pointer", padding: "0 6px" }}
+                >
+                  ×
+                </span>
+              )}
+            </div>
+          ))}
+
+          <span
+            onClick={() => addBullet(sIdx)}
+            style={{ fontFamily: "Inter, sans-serif", fontSize: 11, color: colors.indigo, cursor: "pointer" }}
+          >
+            + Add line
+          </span>
+        </div>
+      ))}
+
+      <span
+        onClick={addSection}
+        style={{ display: "block", fontFamily: "Inter, sans-serif", fontSize: 12, color: colors.indigo, cursor: "pointer", marginBottom: 16 }}
+      >
+        + Add another section
+      </span>
+
+      {errorMsg && (
+        <p style={{ fontFamily: "Inter, sans-serif", fontSize: 12, color: colors.terracottaText, margin: "0 0 10px" }}>
+          {errorMsg}
+        </p>
+      )}
+
+      <div style={{ display: "flex", gap: 8 }}>
+        <button
+          onClick={submit}
+          disabled={submitting}
+          style={{ background: colors.indigo, color: colors.cream, border: "none", borderRadius: 10, padding: "10px 20px", fontFamily: "Inter, sans-serif", fontSize: 13, fontWeight: 500, cursor: "pointer", opacity: submitting ? 0.6 : 1 }}
+        >
+          {submitting ? "Saving…" : "Save resume"}
+        </button>
+        <button
+          onClick={onCancel}
+          style={{ background: "transparent", border: "none", padding: "10px 12px", fontFamily: "Inter, sans-serif", fontSize: 13, color: colors.faint, cursor: "pointer" }}
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function Resumes() {
+  const [resumes, setResumes] = useState([]);
+  const [status, setStatus] = useState("idle");
+  const [errorMsg, setErrorMsg] = useState("");
+  const [showForm, setShowForm] = useState(false);
+
+  const load = useCallback(async () => {
+    setStatus("loading");
+    try {
+      const data = await apiFetch("/resumes");
+      setResumes(data);
+      setStatus("ready");
+    } catch (err) {
+      setErrorMsg(err.message);
+      setStatus("error");
+    }
+  }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  if (showForm) {
+    return (
+      <CreateResumeForm
+        onCreated={() => { setShowForm(false); load(); }}
+        onCancel={() => setShowForm(false)}
+      />
+    );
+  }
+
+  return (
+    <div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+        <p style={{ fontFamily: "Fraunces, serif", fontSize: 18, color: colors.indigo, margin: 0 }}>
+          Your resumes
+        </p>
+        <button
+          onClick={() => setShowForm(true)}
+          style={{ background: colors.indigo, color: colors.cream, border: "none", borderRadius: 10, padding: "8px 16px", fontFamily: "Inter, sans-serif", fontSize: 12, fontWeight: 500, cursor: "pointer" }}
+        >
+          + New resume
+        </button>
+      </div>
+
+      {status === "loading" || status === "idle" ? (
+        <EmptyState title="Loading…" subtitle="Just a moment." />
+      ) : status === "error" ? (
+        <EmptyState title="Couldn't reach the server" subtitle={errorMsg} />
+      ) : resumes.length === 0 ? (
+        <EmptyState title="No resumes yet" subtitle="Create one to start scanning it against job postings." />
+      ) : (
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+          {resumes.map((r) => (
+            <div key={r.id} style={{ background: "#fff", borderRadius: 12, padding: "14px 16px" }}>
+              <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, fontWeight: 500, color: colors.ink, margin: "0 0 4px" }}>
+                {r.label}
+              </p>
+              <p style={{ fontFamily: "Inter, sans-serif", fontSize: 11, color: colors.faint, margin: 0 }}>
+                Updated {new Date(r.updated_at).toLocaleDateString()}
+              </p>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Landing page ───────────────────────────────────
 const features = [
   {
@@ -1339,6 +1583,7 @@ export default function VitaApp() {
       <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
         {[
           { key: "dashboard", label: "Dashboard" },
+          { key: "resumes", label: "Resumes" },
           { key: "scanner", label: "Scanner" },
           { key: "tracker", label: "Tracker" },
           { key: "chat", label: "Interview Prep" },
@@ -1365,6 +1610,7 @@ export default function VitaApp() {
       </div>
 
       {tab === "dashboard" && <Dashboard />}
+      {tab === "resumes" && <Resumes />}
       {tab === "scanner" && <Scanner />}
       {tab === "tracker" && <Tracker />}
       {tab === "chat" && <InterviewChat />}
