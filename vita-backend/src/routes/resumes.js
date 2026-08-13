@@ -3,7 +3,6 @@ import pool from "../db.js";
 
 const router = express.Router();
 
-
 router.post("/", async (req, res) => {
   const { label, sections } = req.body;
   const userId = req.userId; // from the verified token, not the request body
@@ -54,7 +53,6 @@ router.post("/", async (req, res) => {
     client.release();
   }
 });
-
 
 router.get("/", async (req, res) => {
   try {
@@ -131,7 +129,7 @@ router.get("/:id", async (req, res) => {
       [id]
     );
 
-
+    // Reassemble the flat rows into { sections: [ { bullets: [...] } ] }
     const sectionsMap = new Map();
     for (const row of rowsResult.rows) {
       if (!sectionsMap.has(row.section_id)) {
@@ -151,6 +149,53 @@ router.get("/:id", async (req, res) => {
     }
 
     res.json({ ...resume, sections: Array.from(sectionsMap.values()) });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
+router.patch("/:id", async (req, res) => {
+  const { id } = req.params;
+  const { label } = req.body;
+
+  if (!label || !label.trim()) {
+    return res.status(400).json({ error: "label is required" });
+  }
+
+  try {
+    const result = await pool.query(
+      `UPDATE resumes SET label = $1, updated_at = now()
+       WHERE id = $2 AND user_id = $3
+       RETURNING id, label, updated_at`,
+      [label.trim(), id, req.userId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Resume not found" });
+    }
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
+router.delete("/:id", async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const result = await pool.query(
+      "DELETE FROM resumes WHERE id = $1 AND user_id = $2 RETURNING id",
+      [id, req.userId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Resume not found" });
+    }
+    res.status(204).send();
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: err.message });
