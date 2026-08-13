@@ -85,10 +85,111 @@ function EmptyState({ title, subtitle }) {
 }
 
 // ── Tracker view ──────────────────────────────────
+function CreateApplicationForm({ onCreated, onCancel }) {
+  const [company, setCompany] = useState("");
+  const [roleTitle, setRoleTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [status, setStatus] = useState("saved");
+  const [resumes, setResumes] = useState([]);
+  const [resumeId, setResumeId] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
+
+  useEffect(() => {
+    apiFetch("/resumes").then(setResumes).catch(() => {});
+  }, []);
+
+  const submit = async () => {
+    setErrorMsg("");
+    if (!company.trim() || !roleTitle.trim()) {
+      setErrorMsg("Company and role are required.");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const job = await apiFetch("/job-postings", {
+        method: "POST",
+        body: JSON.stringify({
+          company: company.trim(),
+          role_title: roleTitle.trim(),
+          raw_description: description.trim() || `${roleTitle} at ${company}`,
+        }),
+      });
+      await apiFetch("/applications", {
+        method: "POST",
+        body: JSON.stringify({ job_posting_id: job.id, resume_id: resumeId || null, status }),
+      });
+      onCreated();
+    } catch (err) {
+      setErrorMsg(err.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div style={{ background: "#fff", borderRadius: 12, padding: "20px 22px" }}>
+      <p style={{ fontFamily: "Fraunces, serif", fontSize: 18, color: colors.indigo, margin: "0 0 4px" }}>
+        Add an application
+      </p>
+      <p style={{ fontFamily: "Inter, sans-serif", fontSize: 12, color: colors.faint, margin: "0 0 16px" }}>
+        Track a job you've found, applied to, or want to keep an eye on.
+      </p>
+
+      <input value={company} onChange={(e) => setCompany(e.target.value)} placeholder="Company" style={inputStyle} />
+      <input value={roleTitle} onChange={(e) => setRoleTitle(e.target.value)} placeholder="Role title" style={inputStyle} />
+      <textarea
+        value={description}
+        onChange={(e) => setDescription(e.target.value)}
+        placeholder="Job description (optional, but needed if you want to scan it later)"
+        rows={3}
+        style={{ ...inputStyle, resize: "vertical" }}
+      />
+
+      <select value={status} onChange={(e) => setStatus(e.target.value)} style={inputStyle}>
+        <option value="saved">Saved</option>
+        <option value="applied">Applied</option>
+        <option value="interviewing">Interviewing</option>
+        <option value="closed">Not this time</option>
+      </select>
+
+      <select value={resumeId} onChange={(e) => setResumeId(e.target.value)} style={inputStyle}>
+        <option value="">No resume linked yet</option>
+        {resumes.map((r) => (
+          <option key={r.id} value={r.id}>{r.label}</option>
+        ))}
+      </select>
+
+      {errorMsg && (
+        <p style={{ fontFamily: "Inter, sans-serif", fontSize: 12, color: colors.terracottaText, margin: "0 0 10px" }}>
+          {errorMsg}
+        </p>
+      )}
+
+      <div style={{ display: "flex", gap: 8 }}>
+        <button
+          onClick={submit}
+          disabled={submitting}
+          style={{ background: colors.indigo, color: colors.cream, border: "none", borderRadius: 10, padding: "10px 20px", fontFamily: "Inter, sans-serif", fontSize: 13, fontWeight: 500, cursor: "pointer", opacity: submitting ? 0.6 : 1 }}
+        >
+          {submitting ? "Saving…" : "Add to tracker"}
+        </button>
+        <button
+          onClick={onCancel}
+          style={{ background: "transparent", border: "none", padding: "10px 12px", fontFamily: "Inter, sans-serif", fontSize: 13, color: colors.faint, cursor: "pointer" }}
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function Tracker() {
   const [applications, setApplications] = useState([]);
   const [status, setStatus] = useState("idle"); // idle | loading | error | ready
   const [errorMsg, setErrorMsg] = useState("");
+  const [showForm, setShowForm] = useState(false);
 
   const load = useCallback(async () => {
     setStatus("loading");
@@ -106,6 +207,27 @@ function Tracker() {
     load();
   }, [load]);
 
+  const updateStatus = async (appId, newStatus) => {
+    setApplications((prev) => prev.map((a) => (a.id === appId ? { ...a, status: newStatus } : a)));
+    try {
+      await apiFetch(`/applications/${appId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ status: newStatus }),
+      });
+    } catch (err) {
+      load();
+    }
+  };
+
+  if (showForm) {
+    return (
+      <CreateApplicationForm
+        onCreated={() => { setShowForm(false); load(); }}
+        onCancel={() => setShowForm(false)}
+      />
+    );
+  }
+
   if (status === "loading" || status === "idle") {
     return <EmptyState title="Loading your applications…" subtitle="Just a moment." />;
   }
@@ -119,52 +241,84 @@ function Tracker() {
     );
   }
 
-  if (applications.length === 0) {
-    return <EmptyState title="Nothing tracked yet" subtitle="Applications you save will show up here." />;
-  }
-
   return (
-    <div style={{ background: "#fff", borderRadius: 12, overflow: "hidden" }}>
-      {applications.map((app, i) => {
-        const s = statusStyles[app.status] || statusStyles.saved;
-        const dimmed = app.status === "closed";
-        return (
-          <div
-            key={app.id}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              padding: "12px 16px",
-              borderBottom: i < applications.length - 1 ? `0.5px solid ${colors.border}` : "none",
-              opacity: dimmed ? 0.5 : 1,
-              gap: 8,
-              flexWrap: "wrap",
-            }}
-          >
-            <div style={{ flex: 2, minWidth: 140 }}>
-              <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, fontWeight: 500, color: colors.ink, margin: 0 }}>
-                {app.company}
-              </p>
-              <p style={{ fontFamily: "Inter, sans-serif", fontSize: 11, color: colors.faint, margin: 0 }}>
-                {app.role_title}
-              </p>
-            </div>
-            <div style={{ flex: 1, minWidth: 90 }}>
-              <Pill bg={s.bg} color={s.text}>{s.label}</Pill>
-            </div>
-            <div style={{ flex: 1, minWidth: 80 }}>
-              <p style={{ fontFamily: "Inter, sans-serif", fontSize: 12, color: colors.muted, margin: 0 }}>
-                {app.match_score != null ? `${app.match_score}% match` : "Not scanned"}
-              </p>
-            </div>
-            <div style={{ flex: 1, minWidth: 100, textAlign: "right" }}>
-              <p style={{ fontFamily: "Inter, sans-serif", fontSize: 11, color: colors.faint, margin: 0 }}>
-                {new Date(app.created_at).toLocaleDateString()}
-              </p>
-            </div>
-          </div>
-        );
-      })}
+    <div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+        <p style={{ fontFamily: "Fraunces, serif", fontSize: 18, color: colors.indigo, margin: 0 }}>
+          Your applications
+        </p>
+        <button
+          onClick={() => setShowForm(true)}
+          style={{ background: colors.indigo, color: colors.cream, border: "none", borderRadius: 10, padding: "8px 16px", fontFamily: "Inter, sans-serif", fontSize: 12, fontWeight: 500, cursor: "pointer" }}
+        >
+          + New application
+        </button>
+      </div>
+
+      {applications.length === 0 ? (
+        <EmptyState title="Nothing tracked yet" subtitle="Applications you save will show up here." />
+      ) : (
+        <div style={{ background: "#fff", borderRadius: 12, overflow: "hidden" }}>
+          {applications.map((app, i) => {
+            const s = statusStyles[app.status] || statusStyles.saved;
+            const dimmed = app.status === "closed";
+            return (
+              <div
+                key={app.id}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  padding: "12px 16px",
+                  borderBottom: i < applications.length - 1 ? `0.5px solid ${colors.border}` : "none",
+                  opacity: dimmed ? 0.5 : 1,
+                  gap: 8,
+                  flexWrap: "wrap",
+                }}
+              >
+                <div style={{ flex: 2, minWidth: 140 }}>
+                  <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, fontWeight: 500, color: colors.ink, margin: 0 }}>
+                    {app.company}
+                  </p>
+                  <p style={{ fontFamily: "Inter, sans-serif", fontSize: 11, color: colors.faint, margin: 0 }}>
+                    {app.role_title}
+                  </p>
+                </div>
+                <div style={{ flex: 1, minWidth: 110 }}>
+                  <select
+                    value={app.status}
+                    onChange={(e) => updateStatus(app.id, e.target.value)}
+                    style={{
+                      background: s.bg,
+                      color: s.text,
+                      fontSize: 11,
+                      padding: "4px 8px",
+                      borderRadius: 20,
+                      fontFamily: "Inter, sans-serif",
+                      border: "none",
+                      cursor: "pointer",
+                    }}
+                  >
+                    <option value="saved">Saved</option>
+                    <option value="applied">Applied</option>
+                    <option value="interviewing">Interviewing</option>
+                    <option value="closed">Not this time</option>
+                  </select>
+                </div>
+                <div style={{ flex: 1, minWidth: 80 }}>
+                  <p style={{ fontFamily: "Inter, sans-serif", fontSize: 12, color: colors.muted, margin: 0 }}>
+                    {app.match_score != null ? `${app.match_score}% match` : "Not scanned"}
+                  </p>
+                </div>
+                <div style={{ flex: 1, minWidth: 100, textAlign: "right" }}>
+                  <p style={{ fontFamily: "Inter, sans-serif", fontSize: 11, color: colors.faint, margin: 0 }}>
+                    {new Date(app.created_at).toLocaleDateString()}
+                  </p>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
@@ -719,11 +873,20 @@ function Dashboard() {
             </p>
           </div>
           <div style={{ textAlign: "center" }}>
-            <div style={{ width: 44, height: 44, borderRadius: "50%", background: colors.terracotta, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 0 4px" }}>
-              <p style={{ fontFamily: "Inter, sans-serif", fontSize: 14, fontWeight: 500, color: "#4A1B0C", margin: 0 }}>
-                {firstName.slice(0, 2).toUpperCase()}
-              </p>
-            </div>
+            {data.user.avatar_url ? (
+              <img
+                src={data.user.avatar_url}
+                alt=""
+                style={{ width: 44, height: 44, borderRadius: "50%", objectFit: "cover", margin: "0 0 4px" }}
+                onError={(e) => { e.target.style.display = "none"; }}
+              />
+            ) : (
+              <div style={{ width: 44, height: 44, borderRadius: "50%", background: colors.terracotta, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 0 4px" }}>
+                <p style={{ fontFamily: "Inter, sans-serif", fontSize: 14, fontWeight: 500, color: "#4A1B0C", margin: 0 }}>
+                  {firstName.slice(0, 2).toUpperCase()}
+                </p>
+              </div>
+            )}
           </div>
         </div>
         <div style={{ background: "rgba(242,233,228,0.12)", borderRadius: 10, padding: "10px 14px", display: "flex", justifyContent: "space-between" }}>
@@ -782,14 +945,17 @@ function Dashboard() {
         {data.recent_activity.length === 0 ? (
           <p style={{ fontFamily: "Inter, sans-serif", fontSize: 12, color: colors.faint, margin: 0 }}>Nothing yet.</p>
         ) : (
-          data.recent_activity.map((a, i) => (
-            <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-              <span style={{ width: 6, height: 6, borderRadius: "50%", background: colors.lavender, display: "inline-block" }} />
-              <p style={{ fontFamily: "Inter, sans-serif", fontSize: 12, color: colors.muted, margin: 0 }}>
-                {a.type === "application" ? "Applied to " : ""}{a.description}
-              </p>
-            </div>
-          ))
+          data.recent_activity.map((a, i) => {
+            const dotColor = { application: colors.lavender, resume: colors.terracotta, suggestion: colors.terracotta, interview: colors.indigo }[a.type] || colors.lavender;
+            return (
+              <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                <span style={{ width: 6, height: 6, borderRadius: "50%", background: dotColor, display: "inline-block", flexShrink: 0 }} />
+                <p style={{ fontFamily: "Inter, sans-serif", fontSize: 12, color: colors.muted, margin: 0 }}>
+                  {a.type === "application" ? "Applied to " : ""}{a.description}
+                </p>
+              </div>
+            );
+          })
         )}
       </div>
     </div>
@@ -1221,6 +1387,9 @@ function Resumes() {
   const [status, setStatus] = useState("idle");
   const [errorMsg, setErrorMsg] = useState("");
   const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  const [draftLabel, setDraftLabel] = useState("");
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null);
 
   const load = useCallback(async () => {
     setStatus("loading");
@@ -1237,6 +1406,38 @@ function Resumes() {
   useEffect(() => {
     load();
   }, [load]);
+
+  const startRename = (resume) => {
+    setEditingId(resume.id);
+    setDraftLabel(resume.label);
+  };
+
+  const saveRename = async (id) => {
+    if (!draftLabel.trim()) {
+      setEditingId(null);
+      return;
+    }
+    try {
+      await apiFetch(`/resumes/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ label: draftLabel.trim() }),
+      });
+      setEditingId(null);
+      load();
+    } catch (err) {
+      setErrorMsg(err.message);
+    }
+  };
+
+  const confirmDelete = async (id) => {
+    try {
+      await apiFetch(`/resumes/${id}`, { method: "DELETE" });
+      setConfirmDeleteId(null);
+      load();
+    } catch (err) {
+      setErrorMsg(err.message);
+    }
+  };
 
   if (showForm) {
     return (
@@ -1271,12 +1472,44 @@ function Resumes() {
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
           {resumes.map((r) => (
             <div key={r.id} style={{ background: "#fff", borderRadius: 12, padding: "14px 16px" }}>
-              <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, fontWeight: 500, color: colors.ink, margin: "0 0 4px" }}>
-                {r.label}
-              </p>
-              <p style={{ fontFamily: "Inter, sans-serif", fontSize: 11, color: colors.faint, margin: 0 }}>
+              {editingId === r.id ? (
+                <div style={{ marginBottom: 4 }}>
+                  <input
+                    value={draftLabel}
+                    onChange={(e) => setDraftLabel(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && saveRename(r.id)}
+                    autoFocus
+                    style={{ ...inputStyle, marginBottom: 6, fontSize: 13, padding: "6px 10px" }}
+                  />
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <span onClick={() => saveRename(r.id)} style={{ fontFamily: "Inter, sans-serif", fontSize: 11, color: colors.indigo, cursor: "pointer" }}>Save</span>
+                    <span onClick={() => setEditingId(null)} style={{ fontFamily: "Inter, sans-serif", fontSize: 11, color: colors.faint, cursor: "pointer" }}>Cancel</span>
+                  </div>
+                </div>
+              ) : (
+                <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, fontWeight: 500, color: colors.ink, margin: "0 0 4px" }}>
+                  {r.label}
+                </p>
+              )}
+
+              <p style={{ fontFamily: "Inter, sans-serif", fontSize: 11, color: colors.faint, margin: "0 0 10px" }}>
                 Updated {new Date(r.updated_at).toLocaleDateString()}
               </p>
+
+              {editingId !== r.id && (
+                confirmDeleteId === r.id ? (
+                  <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                    <span style={{ fontFamily: "Inter, sans-serif", fontSize: 11, color: colors.terracottaText }}>Delete this resume?</span>
+                    <span onClick={() => confirmDelete(r.id)} style={{ fontFamily: "Inter, sans-serif", fontSize: 11, color: colors.terracottaText, fontWeight: 500, cursor: "pointer" }}>Yes</span>
+                    <span onClick={() => setConfirmDeleteId(null)} style={{ fontFamily: "Inter, sans-serif", fontSize: 11, color: colors.faint, cursor: "pointer" }}>Cancel</span>
+                  </div>
+                ) : (
+                  <div style={{ display: "flex", gap: 10 }}>
+                    <span onClick={() => startRename(r)} style={{ fontFamily: "Inter, sans-serif", fontSize: 11, color: colors.indigo, cursor: "pointer" }}>Rename</span>
+                    <span onClick={() => setConfirmDeleteId(r.id)} style={{ fontFamily: "Inter, sans-serif", fontSize: 11, color: colors.faint, cursor: "pointer" }}>Delete</span>
+                  </div>
+                )
+              )}
             </div>
           ))}
         </div>
@@ -1509,6 +1742,91 @@ function LandingPage({ onGetStarted, onLogin }) {
   );
 }
 
+// ── Settings view ──────────────────────────────────
+function Settings({ user, onUpdated }) {
+  const [name, setName] = useState(user.name || "");
+  const [weeklyGoal, setWeeklyGoal] = useState(user.weekly_goal || 5);
+  const [avatarUrl, setAvatarUrl] = useState(user.avatar_url || "");
+  const [saving, setSaving] = useState(false);
+  const [savedMsg, setSavedMsg] = useState("");
+  const [errorMsg, setErrorMsg] = useState("");
+
+  const save = async () => {
+    setSaving(true);
+    setErrorMsg("");
+    setSavedMsg("");
+    try {
+      const updated = await apiFetch("/auth/me", {
+        method: "PATCH",
+        body: JSON.stringify({
+          name: name.trim() || undefined,
+          weekly_goal: Number(weeklyGoal),
+          avatar_url: avatarUrl.trim() || undefined,
+        }),
+      });
+      onUpdated(updated);
+      setSavedMsg("Saved.");
+    } catch (err) {
+      setErrorMsg(err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div style={{ background: "#fff", borderRadius: 12, padding: "20px 22px", maxWidth: 420 }}>
+      <p style={{ fontFamily: "Fraunces, serif", fontSize: 18, color: colors.indigo, margin: "0 0 16px" }}>
+        Settings
+      </p>
+
+      <p style={{ fontFamily: "Inter, sans-serif", fontSize: 11, fontWeight: 500, color: colors.muted, margin: "0 0 6px" }}>
+        Name
+      </p>
+      <input value={name} onChange={(e) => setName(e.target.value)} style={inputStyle} />
+
+      <p style={{ fontFamily: "Inter, sans-serif", fontSize: 11, fontWeight: 500, color: colors.muted, margin: "0 0 6px" }}>
+        Weekly application goal
+      </p>
+      <input
+        type="number"
+        min={1}
+        value={weeklyGoal}
+        onChange={(e) => setWeeklyGoal(e.target.value)}
+        style={inputStyle}
+      />
+
+      <p style={{ fontFamily: "Inter, sans-serif", fontSize: 11, fontWeight: 500, color: colors.muted, margin: "0 0 6px" }}>
+        Avatar image URL
+      </p>
+      <input
+        value={avatarUrl}
+        onChange={(e) => setAvatarUrl(e.target.value)}
+        placeholder="https://... (optional — we'll use your initials otherwise)"
+        style={inputStyle}
+      />
+
+      {errorMsg && (
+        <p style={{ fontFamily: "Inter, sans-serif", fontSize: 12, color: colors.terracottaText, margin: "0 0 10px" }}>
+          {errorMsg}
+        </p>
+      )}
+      {savedMsg && (
+        <p style={{ fontFamily: "Inter, sans-serif", fontSize: 12, color: colors.indigo, margin: "0 0 10px" }}>
+          {savedMsg}
+        </p>
+      )}
+
+      <button
+        onClick={save}
+        disabled={saving}
+        style={{ background: colors.indigo, color: colors.cream, border: "none", borderRadius: 10, padding: "10px 20px", fontFamily: "Inter, sans-serif", fontSize: 13, fontWeight: 500, cursor: "pointer", opacity: saving ? 0.6 : 1 }}
+      >
+        {saving ? "Saving…" : "Save changes"}
+      </button>
+    </div>
+  );
+}
+
 // ── App shell ──────────────────────────────────────
 export default function VitaApp() {
   const [tab, setTab] = useState("dashboard");
@@ -1588,6 +1906,7 @@ export default function VitaApp() {
           { key: "tracker", label: "Tracker" },
           { key: "chat", label: "Interview Prep" },
           { key: "portfolio", label: "Portfolio" },
+          { key: "settings", label: "Settings" },
         ].map((t) => (
           <button
             key={t.key}
@@ -1615,6 +1934,8 @@ export default function VitaApp() {
       {tab === "tracker" && <Tracker />}
       {tab === "chat" && <InterviewChat />}
       {tab === "portfolio" && <Portfolio />}
+      {tab === "settings" && <Settings user={user} onUpdated={setUser} />}
     </div>
   );
 }
+
