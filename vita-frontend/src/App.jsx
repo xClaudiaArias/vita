@@ -16,6 +16,64 @@ const colors = {
   border: "#E4DCD5",
 };
 
+// ── Shared motion styles ───────────────────────────
+// Inline styles can't do hover states or keyframes, so this small
+// stylesheet gets injected once per top-level screen (via <style>)
+// and applied through className alongside the existing inline styles.
+const globalStyles = `
+  @keyframes vitaFadeIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes vitaPop {
+    0% { transform: scale(0.96); }
+    60% { transform: scale(1.02); }
+    100% { transform: scale(1); }
+  }
+  @keyframes vitaPulseRing {
+    0% { box-shadow: 0 0 0 0 rgba(232, 132, 92, 0.45); }
+    100% { box-shadow: 0 0 0 10px rgba(232, 132, 92, 0); }
+  }
+  .vita-fade-in {
+    animation: vitaFadeIn 0.28s ease both;
+  }
+  .vita-card {
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+  }
+  .vita-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(15, 0, 128, 0.08);
+  }
+  .vita-btn {
+    transition: transform 0.12s ease, opacity 0.12s ease, box-shadow 0.12s ease;
+  }
+  .vita-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 10px rgba(15, 0, 128, 0.18);
+  }
+  .vita-btn:active {
+    transform: scale(0.97);
+  }
+  .vita-tab-btn {
+    transition: transform 0.12s ease, background 0.15s ease, color 0.15s ease;
+  }
+  .vita-tab-btn:hover {
+    transform: translateY(-1px);
+  }
+  .vita-progress-fill {
+    transition: width 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .vita-suggestion-card {
+    transition: opacity 0.35s ease, transform 0.25s ease;
+  }
+  .vita-goal-met {
+    animation: vitaPop 0.4s ease;
+  }
+  .vita-avatar-pulse {
+    animation: vitaPulseRing 1.6s ease-out infinite;
+  }
+`;
+
 const statusStyles = {
   saved: { bg: "#EEEDE5", text: colors.muted, label: "Saved" },
   applied: { bg: colors.lavenderBg, text: colors.indigoDeep, label: "Applied" },
@@ -167,7 +225,7 @@ function CreateApplicationForm({ onCreated, onCancel }) {
       )}
 
       <div style={{ display: "flex", gap: 8 }}>
-        <button
+        <button className="vita-btn"
           onClick={submit}
           disabled={submitting}
           style={{ background: colors.indigo, color: colors.cream, border: "none", borderRadius: 10, padding: "10px 20px", fontFamily: "Inter, sans-serif", fontSize: 13, fontWeight: 500, cursor: "pointer", opacity: submitting ? 0.6 : 1 }}
@@ -247,7 +305,7 @@ function Tracker() {
         <p style={{ fontFamily: "Fraunces, serif", fontSize: 18, color: colors.indigo, margin: 0 }}>
           Your applications
         </p>
-        <button
+        <button className="vita-btn"
           onClick={() => setShowForm(true)}
           style={{ background: colors.indigo, color: colors.cream, border: "none", borderRadius: 10, padding: "8px 16px", fontFamily: "Inter, sans-serif", fontSize: 12, fontWeight: 500, cursor: "pointer" }}
         >
@@ -363,7 +421,7 @@ function Portfolio() {
   return (
     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
       {projects.map((p) => (
-        <div key={p.id} style={{ background: "#fff", borderRadius: 12, overflow: "hidden" }}>
+        <div key={p.id} className="vita-card" style={{ background: "#fff", borderRadius: 12, overflow: "hidden" }}>
           <div style={{ height: 90, background: p.thumbnail_url ? undefined : colors.lavender }} />
           <div style={{ padding: "12px 14px" }}>
             <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, fontWeight: 500, color: colors.ink, margin: "0 0 4px" }}>
@@ -624,9 +682,10 @@ function Scanner() {
         </div>
       )}
 
-      {scan.suggestions.map((s) => (
+      {scan.suggestions.map((s, i) => (
         <div
           key={s.id}
+          className="vita-fade-in vita-suggestion-card"
           style={{
             background: "#fff",
             borderRadius: 12,
@@ -634,6 +693,7 @@ function Scanner() {
             marginBottom: 10,
             borderLeft: `3px solid ${colors.terracotta}`,
             opacity: s.status === "skipped" ? 0.5 : 1,
+            animationDelay: `${i * 60}ms`,
           }}
         >
           <p style={{ fontFamily: "Inter, sans-serif", fontSize: 12, color: colors.terracottaText, margin: "0 0 8px" }}>
@@ -668,7 +728,7 @@ function Scanner() {
         </div>
       ))}
 
-      <button
+      <button className="vita-btn"
         onClick={() => setStep("confirmation")}
         style={{ marginTop: 4, background: colors.indigo, color: colors.cream, border: "none", borderRadius: 10, padding: "10px 20px", fontFamily: "Inter, sans-serif", fontSize: 13, fontWeight: 500, cursor: "pointer" }}
       >
@@ -712,7 +772,7 @@ function ScannerConfirmation({ scan, company, roleTitle, onViewResume }) {
         Want an updated match score? Run a new scan any time — it'll reflect these changes.
       </p>
 
-      <button
+      <button className="vita-btn"
         onClick={onViewResume}
         style={{ background: colors.indigo, color: colors.cream, border: "none", borderRadius: 10, padding: "10px 20px", fontFamily: "Inter, sans-serif", fontSize: 13, fontWeight: 500, cursor: "pointer" }}
       >
@@ -877,11 +937,15 @@ function Dashboard() {
               <img
                 src={data.user.avatar_url}
                 alt=""
+                className={data.user.current_streak > 0 ? "vita-avatar-pulse" : ""}
                 style={{ width: 44, height: 44, borderRadius: "50%", objectFit: "cover", margin: "0 0 4px" }}
                 onError={(e) => { e.target.style.display = "none"; }}
               />
             ) : (
-              <div style={{ width: 44, height: 44, borderRadius: "50%", background: colors.terracotta, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 0 4px" }}>
+              <div
+                className={data.user.current_streak > 0 ? "vita-avatar-pulse" : ""}
+                style={{ width: 44, height: 44, borderRadius: "50%", background: colors.terracotta, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 0 4px" }}
+              >
                 <p style={{ fontFamily: "Inter, sans-serif", fontSize: 14, fontWeight: 500, color: "#4A1B0C", margin: 0 }}>
                   {firstName.slice(0, 2).toUpperCase()}
                 </p>
@@ -889,13 +953,29 @@ function Dashboard() {
             )}
           </div>
         </div>
-        <div style={{ background: "rgba(242,233,228,0.12)", borderRadius: 10, padding: "10px 14px", display: "flex", justifyContent: "space-between" }}>
-          <p style={{ fontFamily: "Inter, sans-serif", fontSize: 12, color: colors.cream, margin: 0 }}>
-            Weekly goal: {data.user.weekly_goal} applications
-          </p>
-          <p style={{ fontFamily: "Inter, sans-serif", fontSize: 12, fontWeight: 500, color: colors.cream, margin: 0 }}>
-            {data.weekly_progress} / {data.user.weekly_goal}
-          </p>
+        <div
+          className={goalPct >= 100 ? "vita-goal-met" : ""}
+          style={{ background: "rgba(242,233,228,0.12)", borderRadius: 10, padding: "10px 14px" }}
+        >
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+            <p style={{ fontFamily: "Inter, sans-serif", fontSize: 12, color: colors.cream, margin: 0 }}>
+              {goalPct >= 100 ? "Weekly goal reached! 🎉" : `Weekly goal: ${data.user.weekly_goal} applications`}
+            </p>
+            <p style={{ fontFamily: "Inter, sans-serif", fontSize: 12, fontWeight: 500, color: colors.cream, margin: 0 }}>
+              {data.weekly_progress} / {data.user.weekly_goal}
+            </p>
+          </div>
+          <div style={{ background: "rgba(242,233,228,0.18)", borderRadius: 20, height: 6, overflow: "hidden" }}>
+            <div
+              className="vita-progress-fill"
+              style={{
+                background: goalPct >= 100 ? colors.terracotta : colors.lavender,
+                height: "100%",
+                width: `${goalPct}%`,
+                borderRadius: 20,
+              }}
+            />
+          </div>
         </div>
       </div>
 
@@ -1039,7 +1119,7 @@ function InterviewChat() {
           </p>
         )}
 
-        <button
+        <button className="vita-btn"
           onClick={startSession}
           style={{ background: colors.indigo, color: colors.cream, border: "none", borderRadius: 10, padding: "10px 20px", fontFamily: "Inter, sans-serif", fontSize: 13, fontWeight: 500, cursor: "pointer" }}
         >
@@ -1077,6 +1157,7 @@ function InterviewChat() {
         {messages.map((m) => (
           <div
             key={m.id}
+            className="vita-fade-in"
             style={{
               alignSelf: m.sender === "user" ? "flex-end" : "flex-start",
               maxWidth: "80%",
@@ -1109,7 +1190,7 @@ function InterviewChat() {
           placeholder="Type your answer..."
           style={{ ...inputStyle, marginBottom: 0, flex: 1 }}
         />
-        <button
+        <button className="vita-btn"
           onClick={sendMessage}
           disabled={sending || !input.trim()}
           style={{ background: colors.indigo, color: colors.cream, border: "none", borderRadius: 10, padding: "0 18px", fontFamily: "Inter, sans-serif", fontSize: 13, cursor: "pointer", opacity: sending || !input.trim() ? 0.5 : 1 }}
@@ -1149,6 +1230,7 @@ function AuthScreen({ onAuthenticated, initialMode = "login", onBack }) {
   return (
     <div style={{ background: colors.cream, minHeight: 500, padding: 24, borderRadius: 16, display: "flex", alignItems: "center", justifyContent: "center" }}>
       <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500&family=Fraunces:wght@500&display=swap" rel="stylesheet" />
+      <style>{globalStyles}</style>
       <div style={{ background: "#fff", borderRadius: 12, padding: "28px 26px", width: "100%", maxWidth: 340 }}>
         {onBack && (
           <p onClick={onBack} style={{ fontFamily: "Inter, sans-serif", fontSize: 12, color: colors.faint, margin: "0 0 14px", cursor: "pointer" }}>
@@ -1364,7 +1446,7 @@ function CreateResumeForm({ onCreated, onCancel }) {
       )}
 
       <div style={{ display: "flex", gap: 8 }}>
-        <button
+        <button className="vita-btn"
           onClick={submit}
           disabled={submitting}
           style={{ background: colors.indigo, color: colors.cream, border: "none", borderRadius: 10, padding: "10px 20px", fontFamily: "Inter, sans-serif", fontSize: 13, fontWeight: 500, cursor: "pointer", opacity: submitting ? 0.6 : 1 }}
@@ -1454,7 +1536,7 @@ function Resumes() {
         <p style={{ fontFamily: "Fraunces, serif", fontSize: 18, color: colors.indigo, margin: 0 }}>
           Your resumes
         </p>
-        <button
+        <button className="vita-btn"
           onClick={() => setShowForm(true)}
           style={{ background: colors.indigo, color: colors.cream, border: "none", borderRadius: 10, padding: "8px 16px", fontFamily: "Inter, sans-serif", fontSize: 12, fontWeight: 500, cursor: "pointer" }}
         >
@@ -1471,7 +1553,7 @@ function Resumes() {
       ) : (
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
           {resumes.map((r) => (
-            <div key={r.id} style={{ background: "#fff", borderRadius: 12, padding: "14px 16px" }}>
+            <div key={r.id} className="vita-card" style={{ background: "#fff", borderRadius: 12, padding: "14px 16px" }}>
               {editingId === r.id ? (
                 <div style={{ marginBottom: 4 }}>
                   <input
@@ -1551,6 +1633,7 @@ function LandingPage({ onGetStarted, onLogin }) {
   return (
     <div style={{ background: colors.cream, borderRadius: 16, overflow: "hidden" }}>
       <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Fraunces:wght@500;600&display=swap" rel="stylesheet" />
+      <style>{globalStyles}</style>
 
       {/* Nav bar */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "20px 28px" }}>
@@ -1816,7 +1899,7 @@ function Settings({ user, onUpdated }) {
         </p>
       )}
 
-      <button
+      <button className="vita-btn"
         onClick={save}
         disabled={saving}
         style={{ background: colors.indigo, color: colors.cream, border: "none", borderRadius: 10, padding: "10px 20px", fontFamily: "Inter, sans-serif", fontSize: 13, fontWeight: 500, cursor: "pointer", opacity: saving ? 0.6 : 1 }}
@@ -1882,6 +1965,7 @@ export default function VitaApp() {
   return (
     <div style={{ background: colors.cream, minHeight: 500, padding: 24, borderRadius: 16 }}>
       <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500&family=Fraunces:wght@500&display=swap" rel="stylesheet" />
+      <style>{globalStyles}</style>
 
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
         <p style={{ fontFamily: "Fraunces, serif", fontSize: 22, fontWeight: 500, color: colors.indigo, margin: 0 }}>
@@ -1910,6 +1994,7 @@ export default function VitaApp() {
         ].map((t) => (
           <button
             key={t.key}
+            className="vita-tab-btn"
             onClick={() => setTab(t.key)}
             style={{
               background: tab === t.key ? colors.indigo : "#fff",
@@ -1928,14 +2013,15 @@ export default function VitaApp() {
         ))}
       </div>
 
-      {tab === "dashboard" && <Dashboard />}
-      {tab === "resumes" && <Resumes />}
-      {tab === "scanner" && <Scanner />}
-      {tab === "tracker" && <Tracker />}
-      {tab === "chat" && <InterviewChat />}
-      {tab === "portfolio" && <Portfolio />}
-      {tab === "settings" && <Settings user={user} onUpdated={setUser} />}
+      <div key={tab} className="vita-fade-in">
+        {tab === "dashboard" && <Dashboard />}
+        {tab === "resumes" && <Resumes />}
+        {tab === "scanner" && <Scanner />}
+        {tab === "tracker" && <Tracker />}
+        {tab === "chat" && <InterviewChat />}
+        {tab === "portfolio" && <Portfolio />}
+        {tab === "settings" && <Settings user={user} onUpdated={setUser} />}
+      </div>
     </div>
   );
 }
-
