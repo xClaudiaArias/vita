@@ -382,10 +382,99 @@ function Tracker() {
 }
 
 // ── Portfolio view ────────────────────────────────
+function ProjectForm({ initial, onSaved, onCancel }) {
+  const [title, setTitle] = useState(initial?.title || "");
+  const [description, setDescription] = useState(initial?.description || "");
+  const [thumbnailUrl, setThumbnailUrl] = useState(initial?.thumbnail_url || "");
+  const [linkUrl, setLinkUrl] = useState(initial?.link_url || "");
+  const [tagsInput, setTagsInput] = useState((initial?.tags || []).join(", "));
+  const [submitting, setSubmitting] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
+
+  const isEditing = !!initial;
+
+  const submit = async () => {
+    setErrorMsg("");
+    if (!title.trim()) {
+      setErrorMsg("Give the project a title.");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const tags = tagsInput.split(",").map((t) => t.trim()).filter(Boolean);
+      const body = {
+        title: title.trim(),
+        description: description.trim() || null,
+        thumbnail_url: thumbnailUrl.trim() || null,
+        link_url: linkUrl.trim() || null,
+        tags,
+      };
+      if (isEditing) {
+        await apiFetch(`/projects/${initial.id}`, { method: "PATCH", body: JSON.stringify(body) });
+      } else {
+        await apiFetch("/projects", { method: "POST", body: JSON.stringify(body) });
+      }
+      onSaved();
+    } catch (err) {
+      setErrorMsg(err.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div style={{ background: "#fff", borderRadius: 12, padding: "20px 22px" }}>
+      <p style={{ fontFamily: "Fraunces, serif", fontSize: 18, color: colors.indigo, margin: "0 0 4px" }}>
+        {isEditing ? "Edit project" : "New project"}
+      </p>
+      <p style={{ fontFamily: "Inter, sans-serif", fontSize: 12, color: colors.faint, margin: "0 0 16px" }}>
+        Show off something you're proud of.
+      </p>
+
+      <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Project title" style={inputStyle} />
+      <textarea
+        value={description}
+        onChange={(e) => setDescription(e.target.value)}
+        placeholder="One or two lines on what it is and the impact it had"
+        rows={3}
+        style={{ ...inputStyle, resize: "vertical" }}
+      />
+      <input value={thumbnailUrl} onChange={(e) => setThumbnailUrl(e.target.value)} placeholder="Thumbnail image URL (optional)" style={inputStyle} />
+      <input value={linkUrl} onChange={(e) => setLinkUrl(e.target.value)} placeholder="Link to the project (optional)" style={inputStyle} />
+      <input value={tagsInput} onChange={(e) => setTagsInput(e.target.value)} placeholder="Tags, comma separated — e.g. Figma, Systems" style={inputStyle} />
+
+      {errorMsg && (
+        <p style={{ fontFamily: "Inter, sans-serif", fontSize: 12, color: colors.terracottaText, margin: "0 0 10px" }}>
+          {errorMsg}
+        </p>
+      )}
+
+      <div style={{ display: "flex", gap: 8 }}>
+        <button
+          className="vita-btn"
+          onClick={submit}
+          disabled={submitting}
+          style={{ background: colors.indigo, color: colors.cream, border: "none", borderRadius: 10, padding: "10px 20px", fontFamily: "Inter, sans-serif", fontSize: 13, fontWeight: 500, cursor: "pointer", opacity: submitting ? 0.6 : 1 }}
+        >
+          {submitting ? "Saving…" : isEditing ? "Save changes" : "Add project"}
+        </button>
+        <button
+          onClick={onCancel}
+          style={{ background: "transparent", border: "none", padding: "10px 12px", fontFamily: "Inter, sans-serif", fontSize: 13, color: colors.faint, cursor: "pointer" }}
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function Portfolio() {
   const [projects, setProjects] = useState([]);
   const [status, setStatus] = useState("idle");
   const [errorMsg, setErrorMsg] = useState("");
+  const [formMode, setFormMode] = useState(null); // null | "create" | project object being edited
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null);
 
   const load = useCallback(async () => {
     setStatus("loading");
@@ -403,6 +492,23 @@ function Portfolio() {
     load();
   }, [load]);
 
+  const deleteProject = async (id) => {
+    try {
+      await apiFetch(`/projects/${id}`, { method: "DELETE" });
+      setConfirmDeleteId(null);
+      load();
+    } catch (err) {
+      setErrorMsg(err.message);
+    }
+  };
+
+  if (formMode === "create") {
+    return <ProjectForm onSaved={() => { setFormMode(null); load(); }} onCancel={() => setFormMode(null)} />;
+  }
+  if (formMode && formMode !== "create") {
+    return <ProjectForm initial={formMode} onSaved={() => { setFormMode(null); load(); }} onCancel={() => setFormMode(null)} />;
+  }
+
   if (status === "loading" || status === "idle") {
     return <EmptyState title="Loading your projects…" subtitle="Just a moment." />;
   }
@@ -414,42 +520,89 @@ function Portfolio() {
       />
     );
   }
-  if (projects.length === 0) {
-    return <EmptyState title="No projects yet" subtitle="Add a project to start building your portfolio." />;
-  }
 
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-      {projects.map((p) => (
-        <div key={p.id} className="vita-card" style={{ background: "#fff", borderRadius: 12, overflow: "hidden" }}>
-          <div style={{ height: 90, background: p.thumbnail_url ? undefined : colors.lavender }} />
-          <div style={{ padding: "12px 14px" }}>
-            <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, fontWeight: 500, color: colors.ink, margin: "0 0 4px" }}>
-              {p.title}
-            </p>
-            <p style={{ fontFamily: "Inter, sans-serif", fontSize: 11, color: colors.faint, margin: "0 0 8px" }}>
-              {p.description}
-            </p>
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-              {(p.tags || []).map((tag) => (
-                <span
-                  key={tag}
-                  style={{
-                    background: "#EEEDE5",
-                    color: colors.muted,
-                    fontSize: 10,
-                    padding: "3px 8px",
-                    borderRadius: 20,
-                    fontFamily: "Inter, sans-serif",
-                  }}
-                >
-                  {tag}
-                </span>
-              ))}
+    <div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+        <p style={{ fontFamily: "Fraunces, serif", fontSize: 18, color: colors.indigo, margin: 0 }}>
+          Your portfolio
+        </p>
+        <button
+          className="vita-btn"
+          onClick={() => setFormMode("create")}
+          style={{ background: colors.indigo, color: colors.cream, border: "none", borderRadius: 10, padding: "8px 16px", fontFamily: "Inter, sans-serif", fontSize: 12, fontWeight: 500, cursor: "pointer" }}
+        >
+          + New project
+        </button>
+      </div>
+
+      {projects.length === 0 ? (
+        <EmptyState title="No projects yet" subtitle="Add a project to start building your portfolio." />
+      ) : (
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+          {projects.map((p) => (
+            <div key={p.id} className="vita-card" style={{ background: "#fff", borderRadius: 12, overflow: "hidden" }}>
+              <div
+                style={{
+                  height: 90,
+                  background: p.thumbnail_url ? `center / cover no-repeat url(${p.thumbnail_url})` : colors.lavender,
+                }}
+              />
+              <div style={{ padding: "12px 14px" }}>
+                <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, fontWeight: 500, color: colors.ink, margin: "0 0 4px" }}>
+                  {p.title}
+                </p>
+                {p.description && (
+                  <p style={{ fontFamily: "Inter, sans-serif", fontSize: 11, color: colors.faint, margin: "0 0 8px" }}>
+                    {p.description}
+                  </p>
+                )}
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
+                  {(p.tags || []).map((tag) => (
+                    <span
+                      key={tag}
+                      style={{
+                        background: "#EEEDE5",
+                        color: colors.muted,
+                        fontSize: 10,
+                        padding: "3px 8px",
+                        borderRadius: 20,
+                        fontFamily: "Inter, sans-serif",
+                      }}
+                    >
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+
+                {p.link_url && (
+                  <a
+                    href={p.link_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ display: "block", fontFamily: "Inter, sans-serif", fontSize: 11, color: colors.indigo, marginBottom: 8, textDecoration: "none" }}
+                  >
+                    View project →
+                  </a>
+                )}
+
+                {confirmDeleteId === p.id ? (
+                  <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                    <span style={{ fontFamily: "Inter, sans-serif", fontSize: 11, color: colors.terracottaText }}>Delete this project?</span>
+                    <span onClick={() => deleteProject(p.id)} style={{ fontFamily: "Inter, sans-serif", fontSize: 11, color: colors.terracottaText, fontWeight: 500, cursor: "pointer" }}>Yes</span>
+                    <span onClick={() => setConfirmDeleteId(null)} style={{ fontFamily: "Inter, sans-serif", fontSize: 11, color: colors.faint, cursor: "pointer" }}>Cancel</span>
+                  </div>
+                ) : (
+                  <div style={{ display: "flex", gap: 10 }}>
+                    <span onClick={() => setFormMode(p)} style={{ fontFamily: "Inter, sans-serif", fontSize: 11, color: colors.indigo, cursor: "pointer" }}>Edit</span>
+                    <span onClick={() => setConfirmDeleteId(p.id)} style={{ fontFamily: "Inter, sans-serif", fontSize: 11, color: colors.faint, cursor: "pointer" }}>Delete</span>
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
+          ))}
         </div>
-      ))}
+      )}
     </div>
   );
 }
