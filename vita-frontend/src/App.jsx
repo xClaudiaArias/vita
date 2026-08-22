@@ -16,64 +16,6 @@ const colors = {
   border: "#E4DCD5",
 };
 
-// ── Shared motion styles ───────────────────────────
-// Inline styles can't do hover states or keyframes, so this small
-// stylesheet gets injected once per top-level screen (via <style>)
-// and applied through className alongside the existing inline styles.
-const globalStyles = `
-  @keyframes vitaFadeIn {
-    from { opacity: 0; transform: translateY(6px); }
-    to { opacity: 1; transform: translateY(0); }
-  }
-  @keyframes vitaPop {
-    0% { transform: scale(0.96); }
-    60% { transform: scale(1.02); }
-    100% { transform: scale(1); }
-  }
-  @keyframes vitaPulseRing {
-    0% { box-shadow: 0 0 0 0 rgba(232, 132, 92, 0.45); }
-    100% { box-shadow: 0 0 0 10px rgba(232, 132, 92, 0); }
-  }
-  .vita-fade-in {
-    animation: vitaFadeIn 0.28s ease both;
-  }
-  .vita-card {
-    transition: transform 0.15s ease, box-shadow 0.15s ease;
-  }
-  .vita-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 16px rgba(15, 0, 128, 0.08);
-  }
-  .vita-btn {
-    transition: transform 0.12s ease, opacity 0.12s ease, box-shadow 0.12s ease;
-  }
-  .vita-btn:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 4px 10px rgba(15, 0, 128, 0.18);
-  }
-  .vita-btn:active {
-    transform: scale(0.97);
-  }
-  .vita-tab-btn {
-    transition: transform 0.12s ease, background 0.15s ease, color 0.15s ease;
-  }
-  .vita-tab-btn:hover {
-    transform: translateY(-1px);
-  }
-  .vita-progress-fill {
-    transition: width 0.6s cubic-bezier(0.22, 1, 0.36, 1);
-  }
-  .vita-suggestion-card {
-    transition: opacity 0.35s ease, transform 0.25s ease;
-  }
-  .vita-goal-met {
-    animation: vitaPop 0.4s ease;
-  }
-  .vita-avatar-pulse {
-    animation: vitaPulseRing 1.6s ease-out infinite;
-  }
-`;
-
 const statusStyles = {
   saved: { bg: "#EEEDE5", text: colors.muted, label: "Saved" },
   applied: { bg: colors.lavenderBg, text: colors.indigoDeep, label: "Applied" },
@@ -225,7 +167,7 @@ function CreateApplicationForm({ onCreated, onCancel }) {
       )}
 
       <div style={{ display: "flex", gap: 8 }}>
-        <button className="vita-btn"
+        <button
           onClick={submit}
           disabled={submitting}
           style={{ background: colors.indigo, color: colors.cream, border: "none", borderRadius: 10, padding: "10px 20px", fontFamily: "Inter, sans-serif", fontSize: 13, fontWeight: 500, cursor: "pointer", opacity: submitting ? 0.6 : 1 }}
@@ -305,7 +247,7 @@ function Tracker() {
         <p style={{ fontFamily: "Fraunces, serif", fontSize: 18, color: colors.indigo, margin: 0 }}>
           Your applications
         </p>
-        <button className="vita-btn"
+        <button
           onClick={() => setShowForm(true)}
           style={{ background: colors.indigo, color: colors.cream, border: "none", borderRadius: 10, padding: "8px 16px", fontFamily: "Inter, sans-serif", fontSize: 12, fontWeight: 500, cursor: "pointer" }}
         >
@@ -382,99 +324,10 @@ function Tracker() {
 }
 
 // ── Portfolio view ────────────────────────────────
-function ProjectForm({ initial, onSaved, onCancel }) {
-  const [title, setTitle] = useState(initial?.title || "");
-  const [description, setDescription] = useState(initial?.description || "");
-  const [thumbnailUrl, setThumbnailUrl] = useState(initial?.thumbnail_url || "");
-  const [linkUrl, setLinkUrl] = useState(initial?.link_url || "");
-  const [tagsInput, setTagsInput] = useState((initial?.tags || []).join(", "));
-  const [submitting, setSubmitting] = useState(false);
-  const [errorMsg, setErrorMsg] = useState("");
-
-  const isEditing = !!initial;
-
-  const submit = async () => {
-    setErrorMsg("");
-    if (!title.trim()) {
-      setErrorMsg("Give the project a title.");
-      return;
-    }
-    setSubmitting(true);
-    try {
-      const tags = tagsInput.split(",").map((t) => t.trim()).filter(Boolean);
-      const body = {
-        title: title.trim(),
-        description: description.trim() || null,
-        thumbnail_url: thumbnailUrl.trim() || null,
-        link_url: linkUrl.trim() || null,
-        tags,
-      };
-      if (isEditing) {
-        await apiFetch(`/projects/${initial.id}`, { method: "PATCH", body: JSON.stringify(body) });
-      } else {
-        await apiFetch("/projects", { method: "POST", body: JSON.stringify(body) });
-      }
-      onSaved();
-    } catch (err) {
-      setErrorMsg(err.message);
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  return (
-    <div style={{ background: "#fff", borderRadius: 12, padding: "20px 22px" }}>
-      <p style={{ fontFamily: "Fraunces, serif", fontSize: 18, color: colors.indigo, margin: "0 0 4px" }}>
-        {isEditing ? "Edit project" : "New project"}
-      </p>
-      <p style={{ fontFamily: "Inter, sans-serif", fontSize: 12, color: colors.faint, margin: "0 0 16px" }}>
-        Show off something you're proud of.
-      </p>
-
-      <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Project title" style={inputStyle} />
-      <textarea
-        value={description}
-        onChange={(e) => setDescription(e.target.value)}
-        placeholder="One or two lines on what it is and the impact it had"
-        rows={3}
-        style={{ ...inputStyle, resize: "vertical" }}
-      />
-      <input value={thumbnailUrl} onChange={(e) => setThumbnailUrl(e.target.value)} placeholder="Thumbnail image URL (optional)" style={inputStyle} />
-      <input value={linkUrl} onChange={(e) => setLinkUrl(e.target.value)} placeholder="Link to the project (optional)" style={inputStyle} />
-      <input value={tagsInput} onChange={(e) => setTagsInput(e.target.value)} placeholder="Tags, comma separated — e.g. Figma, Systems" style={inputStyle} />
-
-      {errorMsg && (
-        <p style={{ fontFamily: "Inter, sans-serif", fontSize: 12, color: colors.terracottaText, margin: "0 0 10px" }}>
-          {errorMsg}
-        </p>
-      )}
-
-      <div style={{ display: "flex", gap: 8 }}>
-        <button
-          className="vita-btn"
-          onClick={submit}
-          disabled={submitting}
-          style={{ background: colors.indigo, color: colors.cream, border: "none", borderRadius: 10, padding: "10px 20px", fontFamily: "Inter, sans-serif", fontSize: 13, fontWeight: 500, cursor: "pointer", opacity: submitting ? 0.6 : 1 }}
-        >
-          {submitting ? "Saving…" : isEditing ? "Save changes" : "Add project"}
-        </button>
-        <button
-          onClick={onCancel}
-          style={{ background: "transparent", border: "none", padding: "10px 12px", fontFamily: "Inter, sans-serif", fontSize: 13, color: colors.faint, cursor: "pointer" }}
-        >
-          Cancel
-        </button>
-      </div>
-    </div>
-  );
-}
-
 function Portfolio() {
   const [projects, setProjects] = useState([]);
   const [status, setStatus] = useState("idle");
   const [errorMsg, setErrorMsg] = useState("");
-  const [formMode, setFormMode] = useState(null); // null | "create" | project object being edited
-  const [confirmDeleteId, setConfirmDeleteId] = useState(null);
 
   const load = useCallback(async () => {
     setStatus("loading");
@@ -492,23 +345,6 @@ function Portfolio() {
     load();
   }, [load]);
 
-  const deleteProject = async (id) => {
-    try {
-      await apiFetch(`/projects/${id}`, { method: "DELETE" });
-      setConfirmDeleteId(null);
-      load();
-    } catch (err) {
-      setErrorMsg(err.message);
-    }
-  };
-
-  if (formMode === "create") {
-    return <ProjectForm onSaved={() => { setFormMode(null); load(); }} onCancel={() => setFormMode(null)} />;
-  }
-  if (formMode && formMode !== "create") {
-    return <ProjectForm initial={formMode} onSaved={() => { setFormMode(null); load(); }} onCancel={() => setFormMode(null)} />;
-  }
-
   if (status === "loading" || status === "idle") {
     return <EmptyState title="Loading your projects…" subtitle="Just a moment." />;
   }
@@ -520,89 +356,42 @@ function Portfolio() {
       />
     );
   }
+  if (projects.length === 0) {
+    return <EmptyState title="No projects yet" subtitle="Add a project to start building your portfolio." />;
+  }
 
   return (
-    <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-        <p style={{ fontFamily: "Fraunces, serif", fontSize: 18, color: colors.indigo, margin: 0 }}>
-          Your portfolio
-        </p>
-        <button
-          className="vita-btn"
-          onClick={() => setFormMode("create")}
-          style={{ background: colors.indigo, color: colors.cream, border: "none", borderRadius: 10, padding: "8px 16px", fontFamily: "Inter, sans-serif", fontSize: 12, fontWeight: 500, cursor: "pointer" }}
-        >
-          + New project
-        </button>
-      </div>
-
-      {projects.length === 0 ? (
-        <EmptyState title="No projects yet" subtitle="Add a project to start building your portfolio." />
-      ) : (
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-          {projects.map((p) => (
-            <div key={p.id} className="vita-card" style={{ background: "#fff", borderRadius: 12, overflow: "hidden" }}>
-              <div
-                style={{
-                  height: 90,
-                  background: p.thumbnail_url ? `center / cover no-repeat url(${p.thumbnail_url})` : colors.lavender,
-                }}
-              />
-              <div style={{ padding: "12px 14px" }}>
-                <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, fontWeight: 500, color: colors.ink, margin: "0 0 4px" }}>
-                  {p.title}
-                </p>
-                {p.description && (
-                  <p style={{ fontFamily: "Inter, sans-serif", fontSize: 11, color: colors.faint, margin: "0 0 8px" }}>
-                    {p.description}
-                  </p>
-                )}
-                <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
-                  {(p.tags || []).map((tag) => (
-                    <span
-                      key={tag}
-                      style={{
-                        background: "#EEEDE5",
-                        color: colors.muted,
-                        fontSize: 10,
-                        padding: "3px 8px",
-                        borderRadius: 20,
-                        fontFamily: "Inter, sans-serif",
-                      }}
-                    >
-                      {tag}
-                    </span>
-                  ))}
-                </div>
-
-                {p.link_url && (
-                  <a
-                    href={p.link_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    style={{ display: "block", fontFamily: "Inter, sans-serif", fontSize: 11, color: colors.indigo, marginBottom: 8, textDecoration: "none" }}
-                  >
-                    View project →
-                  </a>
-                )}
-
-                {confirmDeleteId === p.id ? (
-                  <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                    <span style={{ fontFamily: "Inter, sans-serif", fontSize: 11, color: colors.terracottaText }}>Delete this project?</span>
-                    <span onClick={() => deleteProject(p.id)} style={{ fontFamily: "Inter, sans-serif", fontSize: 11, color: colors.terracottaText, fontWeight: 500, cursor: "pointer" }}>Yes</span>
-                    <span onClick={() => setConfirmDeleteId(null)} style={{ fontFamily: "Inter, sans-serif", fontSize: 11, color: colors.faint, cursor: "pointer" }}>Cancel</span>
-                  </div>
-                ) : (
-                  <div style={{ display: "flex", gap: 10 }}>
-                    <span onClick={() => setFormMode(p)} style={{ fontFamily: "Inter, sans-serif", fontSize: 11, color: colors.indigo, cursor: "pointer" }}>Edit</span>
-                    <span onClick={() => setConfirmDeleteId(p.id)} style={{ fontFamily: "Inter, sans-serif", fontSize: 11, color: colors.faint, cursor: "pointer" }}>Delete</span>
-                  </div>
-                )}
-              </div>
+    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+      {projects.map((p) => (
+        <div key={p.id} style={{ background: "#fff", borderRadius: 12, overflow: "hidden" }}>
+          <div style={{ height: 90, background: p.thumbnail_url ? undefined : colors.lavender }} />
+          <div style={{ padding: "12px 14px" }}>
+            <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, fontWeight: 500, color: colors.ink, margin: "0 0 4px" }}>
+              {p.title}
+            </p>
+            <p style={{ fontFamily: "Inter, sans-serif", fontSize: 11, color: colors.faint, margin: "0 0 8px" }}>
+              {p.description}
+            </p>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              {(p.tags || []).map((tag) => (
+                <span
+                  key={tag}
+                  style={{
+                    background: "#EEEDE5",
+                    color: colors.muted,
+                    fontSize: 10,
+                    padding: "3px 8px",
+                    borderRadius: 20,
+                    fontFamily: "Inter, sans-serif",
+                  }}
+                >
+                  {tag}
+                </span>
+              ))}
             </div>
-          ))}
+          </div>
         </div>
-      )}
+      ))}
     </div>
   );
 }
@@ -835,10 +624,9 @@ function Scanner() {
         </div>
       )}
 
-      {scan.suggestions.map((s, i) => (
+      {scan.suggestions.map((s) => (
         <div
           key={s.id}
-          className="vita-fade-in vita-suggestion-card"
           style={{
             background: "#fff",
             borderRadius: 12,
@@ -846,7 +634,6 @@ function Scanner() {
             marginBottom: 10,
             borderLeft: `3px solid ${colors.terracotta}`,
             opacity: s.status === "skipped" ? 0.5 : 1,
-            animationDelay: `${i * 60}ms`,
           }}
         >
           <p style={{ fontFamily: "Inter, sans-serif", fontSize: 12, color: colors.terracottaText, margin: "0 0 8px" }}>
@@ -881,7 +668,7 @@ function Scanner() {
         </div>
       ))}
 
-      <button className="vita-btn"
+      <button
         onClick={() => setStep("confirmation")}
         style={{ marginTop: 4, background: colors.indigo, color: colors.cream, border: "none", borderRadius: 10, padding: "10px 20px", fontFamily: "Inter, sans-serif", fontSize: 13, fontWeight: 500, cursor: "pointer" }}
       >
@@ -925,7 +712,7 @@ function ScannerConfirmation({ scan, company, roleTitle, onViewResume }) {
         Want an updated match score? Run a new scan any time — it'll reflect these changes.
       </p>
 
-      <button className="vita-btn"
+      <button
         onClick={onViewResume}
         style={{ background: colors.indigo, color: colors.cream, border: "none", borderRadius: 10, padding: "10px 20px", fontFamily: "Inter, sans-serif", fontSize: 13, fontWeight: 500, cursor: "pointer" }}
       >
@@ -1090,15 +877,11 @@ function Dashboard() {
               <img
                 src={data.user.avatar_url}
                 alt=""
-                className={data.user.current_streak > 0 ? "vita-avatar-pulse" : ""}
                 style={{ width: 44, height: 44, borderRadius: "50%", objectFit: "cover", margin: "0 0 4px" }}
                 onError={(e) => { e.target.style.display = "none"; }}
               />
             ) : (
-              <div
-                className={data.user.current_streak > 0 ? "vita-avatar-pulse" : ""}
-                style={{ width: 44, height: 44, borderRadius: "50%", background: colors.terracotta, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 0 4px" }}
-              >
+              <div style={{ width: 44, height: 44, borderRadius: "50%", background: colors.terracotta, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 0 4px" }}>
                 <p style={{ fontFamily: "Inter, sans-serif", fontSize: 14, fontWeight: 500, color: "#4A1B0C", margin: 0 }}>
                   {firstName.slice(0, 2).toUpperCase()}
                 </p>
@@ -1106,29 +889,13 @@ function Dashboard() {
             )}
           </div>
         </div>
-        <div
-          className={goalPct >= 100 ? "vita-goal-met" : ""}
-          style={{ background: "rgba(242,233,228,0.12)", borderRadius: 10, padding: "10px 14px" }}
-        >
-          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-            <p style={{ fontFamily: "Inter, sans-serif", fontSize: 12, color: colors.cream, margin: 0 }}>
-              {goalPct >= 100 ? "Weekly goal reached! 🎉" : `Weekly goal: ${data.user.weekly_goal} applications`}
-            </p>
-            <p style={{ fontFamily: "Inter, sans-serif", fontSize: 12, fontWeight: 500, color: colors.cream, margin: 0 }}>
-              {data.weekly_progress} / {data.user.weekly_goal}
-            </p>
-          </div>
-          <div style={{ background: "rgba(242,233,228,0.18)", borderRadius: 20, height: 6, overflow: "hidden" }}>
-            <div
-              className="vita-progress-fill"
-              style={{
-                background: goalPct >= 100 ? colors.terracotta : colors.lavender,
-                height: "100%",
-                width: `${goalPct}%`,
-                borderRadius: 20,
-              }}
-            />
-          </div>
+        <div style={{ background: "rgba(242,233,228,0.12)", borderRadius: 10, padding: "10px 14px", display: "flex", justifyContent: "space-between" }}>
+          <p style={{ fontFamily: "Inter, sans-serif", fontSize: 12, color: colors.cream, margin: 0 }}>
+            Weekly goal: {data.user.weekly_goal} applications
+          </p>
+          <p style={{ fontFamily: "Inter, sans-serif", fontSize: 12, fontWeight: 500, color: colors.cream, margin: 0 }}>
+            {data.weekly_progress} / {data.user.weekly_goal}
+          </p>
         </div>
       </div>
 
@@ -1272,7 +1039,7 @@ function InterviewChat() {
           </p>
         )}
 
-        <button className="vita-btn"
+        <button
           onClick={startSession}
           style={{ background: colors.indigo, color: colors.cream, border: "none", borderRadius: 10, padding: "10px 20px", fontFamily: "Inter, sans-serif", fontSize: 13, fontWeight: 500, cursor: "pointer" }}
         >
@@ -1310,7 +1077,6 @@ function InterviewChat() {
         {messages.map((m) => (
           <div
             key={m.id}
-            className="vita-fade-in"
             style={{
               alignSelf: m.sender === "user" ? "flex-end" : "flex-start",
               maxWidth: "80%",
@@ -1343,7 +1109,7 @@ function InterviewChat() {
           placeholder="Type your answer..."
           style={{ ...inputStyle, marginBottom: 0, flex: 1 }}
         />
-        <button className="vita-btn"
+        <button
           onClick={sendMessage}
           disabled={sending || !input.trim()}
           style={{ background: colors.indigo, color: colors.cream, border: "none", borderRadius: 10, padding: "0 18px", fontFamily: "Inter, sans-serif", fontSize: 13, cursor: "pointer", opacity: sending || !input.trim() ? 0.5 : 1 }}
@@ -1383,7 +1149,6 @@ function AuthScreen({ onAuthenticated, initialMode = "login", onBack }) {
   return (
     <div style={{ background: colors.cream, minHeight: 500, padding: 24, borderRadius: 16, display: "flex", alignItems: "center", justifyContent: "center" }}>
       <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500&family=Fraunces:wght@500&display=swap" rel="stylesheet" />
-      <style>{globalStyles}</style>
       <div style={{ background: "#fff", borderRadius: 12, padding: "28px 26px", width: "100%", maxWidth: 340 }}>
         {onBack && (
           <p onClick={onBack} style={{ fontFamily: "Inter, sans-serif", fontSize: 12, color: colors.faint, margin: "0 0 14px", cursor: "pointer" }}>
@@ -1599,7 +1364,7 @@ function CreateResumeForm({ onCreated, onCancel }) {
       )}
 
       <div style={{ display: "flex", gap: 8 }}>
-        <button className="vita-btn"
+        <button
           onClick={submit}
           disabled={submitting}
           style={{ background: colors.indigo, color: colors.cream, border: "none", borderRadius: 10, padding: "10px 20px", fontFamily: "Inter, sans-serif", fontSize: 13, fontWeight: 500, cursor: "pointer", opacity: submitting ? 0.6 : 1 }}
@@ -1689,7 +1454,7 @@ function Resumes() {
         <p style={{ fontFamily: "Fraunces, serif", fontSize: 18, color: colors.indigo, margin: 0 }}>
           Your resumes
         </p>
-        <button className="vita-btn"
+        <button
           onClick={() => setShowForm(true)}
           style={{ background: colors.indigo, color: colors.cream, border: "none", borderRadius: 10, padding: "8px 16px", fontFamily: "Inter, sans-serif", fontSize: 12, fontWeight: 500, cursor: "pointer" }}
         >
@@ -1706,7 +1471,7 @@ function Resumes() {
       ) : (
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
           {resumes.map((r) => (
-            <div key={r.id} className="vita-card" style={{ background: "#fff", borderRadius: 12, padding: "14px 16px" }}>
+            <div key={r.id} style={{ background: "#fff", borderRadius: 12, padding: "14px 16px" }}>
               {editingId === r.id ? (
                 <div style={{ marginBottom: 4 }}>
                   <input
@@ -1786,7 +1551,6 @@ function LandingPage({ onGetStarted, onLogin }) {
   return (
     <div style={{ background: colors.cream, borderRadius: 16, overflow: "hidden" }}>
       <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Fraunces:wght@500;600&display=swap" rel="stylesheet" />
-      <style>{globalStyles}</style>
 
       {/* Nav bar */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "20px 28px" }}>
@@ -2052,7 +1816,7 @@ function Settings({ user, onUpdated }) {
         </p>
       )}
 
-      <button className="vita-btn"
+      <button
         onClick={save}
         disabled={saving}
         style={{ background: colors.indigo, color: colors.cream, border: "none", borderRadius: 10, padding: "10px 20px", fontFamily: "Inter, sans-serif", fontSize: 13, fontWeight: 500, cursor: "pointer", opacity: saving ? 0.6 : 1 }}
@@ -2118,7 +1882,6 @@ export default function VitaApp() {
   return (
     <div style={{ background: colors.cream, minHeight: 500, padding: 24, borderRadius: 16 }}>
       <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500&family=Fraunces:wght@500&display=swap" rel="stylesheet" />
-      <style>{globalStyles}</style>
 
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
         <p style={{ fontFamily: "Fraunces, serif", fontSize: 22, fontWeight: 500, color: colors.indigo, margin: 0 }}>
@@ -2147,7 +1910,6 @@ export default function VitaApp() {
         ].map((t) => (
           <button
             key={t.key}
-            className="vita-tab-btn"
             onClick={() => setTab(t.key)}
             style={{
               background: tab === t.key ? colors.indigo : "#fff",
@@ -2166,15 +1928,13 @@ export default function VitaApp() {
         ))}
       </div>
 
-      <div key={tab} className="vita-fade-in">
-        {tab === "dashboard" && <Dashboard />}
-        {tab === "resumes" && <Resumes />}
-        {tab === "scanner" && <Scanner />}
-        {tab === "tracker" && <Tracker />}
-        {tab === "chat" && <InterviewChat />}
-        {tab === "portfolio" && <Portfolio />}
-        {tab === "settings" && <Settings user={user} onUpdated={setUser} />}
-      </div>
+      {tab === "dashboard" && <Dashboard />}
+      {tab === "resumes" && <Resumes />}
+      {tab === "scanner" && <Scanner />}
+      {tab === "tracker" && <Tracker />}
+      {tab === "chat" && <InterviewChat />}
+      {tab === "portfolio" && <Portfolio />}
+      {tab === "settings" && <Settings user={user} onUpdated={setUser} />}
     </div>
   );
 }
