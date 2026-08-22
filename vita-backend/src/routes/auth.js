@@ -12,7 +12,10 @@ function generateToken(userId) {
   return jwt.sign({ userId }, process.env.JWT_SECRET, { expiresIn: "7d" });
 }
 
-
+// ─────────────────────────────────────────
+// POST /auth/signup
+// Body: { "email", "password", "name" }
+// ─────────────────────────────────────────
 router.post("/signup", async (req, res) => {
   const { email, password, name } = req.body;
 
@@ -50,7 +53,10 @@ router.post("/signup", async (req, res) => {
   }
 });
 
-
+// ─────────────────────────────────────────
+// POST /auth/login
+// Body: { "email", "password" }
+// ─────────────────────────────────────────
 router.post("/login", async (req, res) => {
   const { email, password } = req.body;
 
@@ -89,10 +95,11 @@ router.post("/login", async (req, res) => {
   }
 });
 
-
+// ─────────────────────────────────────────
+// GET /auth/me
 // Returns the current user's info based on their token.
 // Useful for the frontend to check "am I still logged in?" on page load.
-
+// ─────────────────────────────────────────
 router.get("/me", async (req, res) => {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
