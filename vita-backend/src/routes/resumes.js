@@ -3,6 +3,19 @@ import pool from "../db.js";
 
 const router = express.Router();
 
+// ─────────────────────────────────────────
+// POST /resumes
+// Creates a resume with its sections and bullets in one request.
+// Expects a body like:
+// {
+//   "user_id": "uuid",
+//   "label": "Product Design",
+//   "sections": [
+//     { "type": "summary", "bullets": ["Product designer with 6 years..."] },
+//     { "type": "experience", "bullets": ["Led design for...", "Partnered with..."] }
+//   ]
+// }
+// ─────────────────────────────────────────
 router.post("/", async (req, res) => {
   const { label, sections } = req.body;
   const userId = req.userId; // from the verified token, not the request body
@@ -54,6 +67,11 @@ router.post("/", async (req, res) => {
   }
 });
 
+// ─────────────────────────────────────────
+// GET /resumes
+// Lists all resumes for the logged-in user — just the label and
+// freshness, not the full nested content (that's what GET /:id is for).
+// ─────────────────────────────────────────
 router.get("/", async (req, res) => {
   try {
     const result = await pool.query(
@@ -67,7 +85,11 @@ router.get("/", async (req, res) => {
   }
 });
 
-
+// ─────────────────────────────────────────
+// PATCH /resumes/bullets/:bulletId
+// Directly edits a bullet's content — used when the person manually
+// edits a line in the resume editor (not via an AI suggestion).
+// ─────────────────────────────────────────
 router.patch("/bullets/:bulletId", async (req, res) => {
   const { bulletId } = req.params;
   const { content } = req.body;
@@ -98,7 +120,11 @@ router.patch("/bullets/:bulletId", async (req, res) => {
   }
 });
 
-
+// ─────────────────────────────────────────
+// GET /resumes/:id
+// Fetches a resume with its sections and bullets nested,
+// matching the shape the frontend editor needs.
+// ─────────────────────────────────────────
 router.get("/:id", async (req, res) => {
   const { id } = req.params;
 
@@ -155,7 +181,11 @@ router.get("/:id", async (req, res) => {
   }
 });
 
-
+// ─────────────────────────────────────────
+// PATCH /resumes/:id
+// Currently just renaming the resume's label. Scoped to the
+// logged-in user so you can't rename someone else's resume.
+// ─────────────────────────────────────────
 router.patch("/:id", async (req, res) => {
   const { id } = req.params;
   const { label } = req.body;
@@ -182,7 +212,14 @@ router.patch("/:id", async (req, res) => {
   }
 });
 
-
+// ─────────────────────────────────────────
+// DELETE /resumes/:id
+// Deleting a resume also deletes its sections and bullets (cascading,
+// set up in the schema), and any application referencing it will keep
+// existing but with resume_id set to NULL rather than being deleted too —
+// you shouldn't lose your whole application history just because you
+// deleted an old resume version.
+// ─────────────────────────────────────────
 router.delete("/:id", async (req, res) => {
   const { id } = req.params;
 
