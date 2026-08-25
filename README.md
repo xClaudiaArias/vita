@@ -1,7 +1,7 @@
 # vita
 ATS resume application
 
-# MVP STATUS
+## MVP STATUS
 - [x] Landing page + nav
 - [x] Auth (signup/login, JWT, per-user data isolation)
 - [x] Resumes — create, list, rename, delete, scan
@@ -12,3 +12,9 @@ ATS resume application
 - [x] Interview Chatbot — complete, live AI
 - [x] Settings — name, weekly goal, avatar
 - [x] Motion pass — hover states, fades, progress animation
+
+## What is next?
+- [ ] valid emails
+- [ ] easier sign up
+- [ ] parse resume
+- [ ] scan jobs
