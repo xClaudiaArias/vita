@@ -201,3 +201,26 @@ Just little insights generated from existing data.
 - Your Product Design resume is your most successful version.
 - Your average match score is 82%.
 - You've got 2 interviews coming up.
+
+---
+
+## PASSES
+
+### PASS 1 — Visual foundation
+
+Don't touch functionality.
+
+**Establish:**
+    spacing system
+    typography hierarchy
+    card hierarchy
+    button hierarchy
+    shadows/borders
+    hover states
+    page widths
+    responsive behavior
+    navigation
+    empty states
+    consistent component styles
+**Goal:**
+    Make the existing app look intentionally designed.
