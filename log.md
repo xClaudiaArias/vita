@@ -124,7 +124,7 @@ The user shouldn't have to enter that again
 ---
 
 VITA should handle:
-Job → company → role → description → keywords → resume → scan → tracker
+> Job → company → role → description → keywords → resume → scan → tracker
 
 Before scanning
 Huge:
@@ -224,3 +224,37 @@ Don't touch functionality.
     consistent component styles
 **Goal:**
     Make the existing app look intentionally designed.
+
+### PASS 2 — Dashboard redesign
+
+**We'll redesign:**
+    greeting
+    goal
+    streak
+    upcoming
+    matches
+    activity
+    empty states
+**next-action suggestions**
+    small progress/insight moments
+**Goal:**
+    When I open VITA, I immediately understand what matters.
+
+### PASS 3 — Resume experience
+
+**Redesign:**
+
+- resume cards
+- resume preview
+- resume editor
+
+**Version metadata:**
+> empty state -> creation flow -> -> Then reduce manual entry wherever possible.
+
+### PASS 4 — Scanner experience
+
+This is the hero redesign.
+
+Improve:
+> Job URL → parsing → resume selection → scanning → results → changes → tracker
+    And we make it feel like one cohesive journey
