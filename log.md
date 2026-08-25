@@ -34,10 +34,31 @@
 - little moments of motion
 - stronger section hierarchy
 - cards that actually do different things
+- hand-drawn illustrations
+  - tiny flower
+  - little star
+  - paper/document illustrations
+  - hand-drawn arrows
+  - subtle organic shapes
+  - little terracotta accents
+  - abstract career-growth illustrations
+
+## Animate meaningful actions
+
+For example:
+Accept suggestion
+    *The suggestion slides away.*
+    **The resume line becomes highlighted.**
+A tiny:
+    *✓ Added to your resume*
+Then:
+    *78% → 84% animates.*
 
 There isn't enough hierarchy.
 
-### Organizing ideas
+---
+
+### Organizing user flow
 
 **Your job search**
 Instead of "Recent activity."
@@ -105,3 +126,64 @@ The user shouldn't have to enter that again
 VITA should handle:
 Job → company → role → description → keywords → resume → scan → tracker
 
+Before scanning
+Huge:
+What are you applying to?
+Drop a job posting here and I'll help you figure out where you stand.
+Then:
+Paste a job link
+or
+Paste job description
+And perhaps a visually interesting upload/drop area.
+Then:
+*Your resume*
+Show actual resume cards rather than a `<select>`.
+And after scanning...
+Before scanning
+Huge:
+What are you applying to?
+Drop a job posting here and I'll help you figure out where you stand.
+Then:
+Paste a job link
+or
+Paste job description
+And perhaps a visually interesting upload/drop area.
+Then:
+Your resume
+Show actual resume cards rather than a `<select>`.
+And after scanning...
+This is where VITA can shine.
+[Accept] [Edit] [Skip]
+
+**note to ask for user flow:**
+
+- What happens when I hover?
+- What happens when I click?
+- What happens when there's nothing here?
+- What happens after I complete something?
+- What happens when something changes?
+- What happens if something goes wrong?
+- What happens when I return tomorrow?
+
+ ---
+
+## Empty states are currently a HUGE opportunity
+
+Instead of:
+    Nothing on the horizon.
+    Give VITA personality.
+For example:
+    Coming up
+    *Nothing scheduled yet.*
+    **Your calendar is quiet for now. That's okay.**
+    Browse applications →
+    [New matches]
+    [No saved matches yet.]
+    *When you find something promising, we'll keep it here.*
+
+Scan a job →
+    Empty portfolio
+Instead of a blank page:
+    > *Show people what you can build.*
+    *Your projects don't have to be perfect. Start with one.*
+    Add your first project →
