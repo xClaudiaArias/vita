@@ -187,3 +187,17 @@ Instead of a blank page:
     > *Show people what you can build.*
     *Your projects don't have to be perfect. Start with one.*
     Add your first project →
+
+---
+
+## lightweight job-search insights
+
+Not a giant analytics dashboard.
+Just little insights generated from existing data.
+
+### For example
+
+- You've applied to 8 product roles this month.
+- Your Product Design resume is your most successful version.
+- Your average match score is 82%.
+- You've got 2 interviews coming up.
