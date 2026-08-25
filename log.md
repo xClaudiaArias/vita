@@ -73,7 +73,7 @@ And show 3–4 meaningful things.
 Updated Test2 resume
 **bu**t:
 You tailored your Product Design resume
-for Rogo.
+for brand name here.
 
 **VITA should constantly answer**:
 > What should I do next?
@@ -96,7 +96,7 @@ Or:
 Paste job URL.
     *VITA fetches/parses the job.*
 Then:
-    *Looks like a Product Designer role at Rogo.*
+    *Looks like a Product Designer role at brand name here.*
     `Product Design
     New York / Remote
     Full-time`
@@ -114,7 +114,7 @@ Add to tracker →
 
     ```
         { 
-        "Company": "Rogo",
+        "Company": "brand name here",
         "Role": "Product Designer",
         "Resume: "Product Design",
         "Status: "Saved",
@@ -270,7 +270,7 @@ Make the tracker feel less like a spreadsheet.
 instead of:
 database rows
 For example:
-> Rogo
+> brand name here
     Product Designer
     Interviewing
     87% match
