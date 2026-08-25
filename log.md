@@ -21,7 +21,7 @@
 - [ ] scan jobs
 - [ ] restructure VITA to be calm productivity app + editorial portfolio + personal career journal
 - [ ] *too much manual data entry*
-
+- [ ] resume page needs WAY more personality -> could be pdf preview
 
 ## update visuals
 
@@ -69,16 +69,39 @@ Or:
 
 **Step 1**
 Paste job URL.
-*VITA fetches/parses the job.*
+    *VITA fetches/parses the job.*
 Then:
-*Looks like a Product Designer role at Rogo.*
-`Product Design
-New York / Remote
-Full-time`
+    *Looks like a Product Designer role at Rogo.*
+    `Product Design
+    New York / Remote
+    Full-time`
 Then:
-*Choose resume*
-→ Product Design
+    *Choose resume*
+    → Product Design
 Then:
-*Scan*
-*VITA generates the analysis.*
+    *Scan*
+    *VITA generates the analysis.*
+
+Then after the user accepts changes:
+    *Ready to apply?*
+Add to tracker →
+    *And VITA automatically creates:*
+
+    ```
+        { 
+        "Company": "Rogo",
+        "Role": "Product Designer",
+        "Resume: "Product Design",
+        "Status: "Saved",
+        "Match": "87%",
+        "Job URL": "..."
+    }
+    ```
+
+The user shouldn't have to enter that again
+
+---
+
+VITA should handle:
+Job → company → role → description → keywords → resume → scan → tracker
 
