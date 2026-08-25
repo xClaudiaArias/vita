@@ -258,3 +258,49 @@ This is the hero redesign.
 Improve:
 > Job URL → parsing → resume selection → scanning → results → changes → tracker
     And we make it feel like one cohesive journey
+
+### PASS 5 — Tracker
+
+Make the tracker feel less like a spreadsheet.
+> application cards + timeline + next action
+instead of:
+database rows
+For example:
+> Rogo
+    Product Designer
+    Interviewing
+    87% match
+    Next: Interview Thursday
+    That feels much more useful
+
+### PASS 6 — Portfolio
+
+This should probably be your prettiest screen.
+Because it's public-facing.
+
+**Things to improve and flex:**
+
+- typography
+- layout
+- artwork
+- project imagery
+- interactions
+- responsive design
+
+### PASS 7 — Automation / reduced manual work
+
+Only after the visual redesign.
+
+**Prioritize:**
+
+High value:
+> Job URL parsing -> Automatic company/role extraction -> Automatically create tracker entry after scan -> Automatically associate resume -> Reuse profile information -> Generate application metadata
+
+**Later Potentially:**
+
+- browser extension/bookmarklet
+- job-board import
+- email integration
+- calendar integration
+- application deadline extraction
+

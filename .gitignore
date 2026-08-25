@@ -6,4 +6,5 @@ node_modules/
 dist/
 .env
 *.log
+ps.md
 
