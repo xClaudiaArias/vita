@@ -15,6 +15,8 @@
 
 ## What is next?
 
+**Vita 1.1.0:**
+
 - [ ] valid emails
 - [ ] easier sign up
 - [ ] parse resume
@@ -57,6 +59,8 @@ Then:
 There isn't enough hierarchy.
 
 ---
+
+## LATER
 
 ### Organizing user flow
 
