@@ -20,6 +20,8 @@
 - [ ] parse resume
 - [ ] scan jobs
 - [ ] restructure VITA to be calm productivity app + editorial portfolio + personal career journal
+- [ ] *too much manual data entry*
+
 
 ## update visuals
 
@@ -37,18 +39,18 @@ There isn't enough hierarchy.
 
 ### Organizing ideas
 
-*Your job search*
+**Your job search**
 Instead of "Recent activity."
-*Maybe*:
+**Maybe**:
 > A little recap
 And show 3–4 meaningful things.
-*Not*:
+**Not**:
 Updated Test2 resume
-*bu*t:
+**bu**t:
 You tailored your Product Design resume
 for Rogo.
 
-VITA should constantly answer:
+**VITA should constantly answer**:
 > What should I do next?
 
 Imagine the dashboard opening and saying:
@@ -60,4 +62,23 @@ Or:
 Or:
 > Want to make some progress?
 > You haven't applied anywhere this week. Browse your saved jobs or scan a new posting.
+
+## The scanner should become the beginning of the entire workflow
+
+### user flow
+
+**Step 1**
+Paste job URL.
+*VITA fetches/parses the job.*
+Then:
+*Looks like a Product Designer role at Rogo.*
+`Product Design
+New York / Remote
+Full-time`
+Then:
+*Choose resume*
+→ Product Design
+Then:
+*Scan*
+*VITA generates the analysis.*
 
