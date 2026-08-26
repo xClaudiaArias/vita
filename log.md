@@ -15,7 +15,42 @@
 
 ## What is next?
 
-**Vita 1.1.0:**
+### Vita 1.1.0
+
+**Order:**
+
+- [ ] Scanner *← next*
+- [ ] Dashboard
+- [ ] Resumes
+- [ ] Tracker
+- [ ] Portfolio
+- [ ] Interview Prep
+- [ ] Settings
+
+for each, define:
+
+> User goal
+    What am I here to accomplish?
+> Information hierarchy
+    What do I need to see first?
+> Primary action
+    What should I do?
+> Secondary actions
+    What else can I do?
+> Empty state
+    What happens when there is no data?
+> Populated state
+    What does success look like?
+> Loading state
+    What does VITA do while thinking?
+> Error state
+    What happens when something breaks?
+> Personality
+    What makes this feel like VITA?
+> Motion
+    What should move, and why?
+
+**Functionality:**
 
 - [ ] valid emails
 - [ ] easier sign up
