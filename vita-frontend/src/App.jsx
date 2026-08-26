@@ -16,6 +16,26 @@ const colors = {
   border: "#E4DCD5",
 };
 
+// ── Design system: spacing & typography scales ────
+// A shared scale means every gap/padding/margin pulls from the same
+// set of values instead of one-off numbers, which is what gives a UI
+// visual rhythm instead of feeling arbitrary.
+const space = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32, xxxl: 48 };
+
+const type = {
+  display: { fontFamily: "Fraunces, serif", fontWeight: 600, fontSize: 28, lineHeight: 1.2 },
+  heading: { fontFamily: "Fraunces, serif", fontWeight: 500, fontSize: 19, lineHeight: 1.3 },
+  subheading: { fontFamily: "Fraunces, serif", fontWeight: 500, fontSize: 16, lineHeight: 1.35 },
+  body: { fontFamily: "Inter, sans-serif", fontWeight: 400, fontSize: 13, lineHeight: 1.55 },
+  bodyMedium: { fontFamily: "Inter, sans-serif", fontWeight: 500, fontSize: 13, lineHeight: 1.5 },
+  label: { fontFamily: "Inter, sans-serif", fontWeight: 500, fontSize: 11.5, lineHeight: 1.4 },
+  caption: { fontFamily: "Inter, sans-serif", fontWeight: 400, fontSize: 11, lineHeight: 1.5 },
+};
+
+// Content width system — constrains the reading/working area on wide
+// viewports instead of letting cards and text stretch edge to edge.
+const contentMaxWidth = 880;
+
 // ── Shared motion styles ───────────────────────────
 // Inline styles can't do hover states or keyframes, so this small
 // stylesheet gets injected once per top-level screen (via <style>)
@@ -72,6 +92,55 @@ const globalStyles = `
   .vita-avatar-pulse {
     animation: vitaPulseRing 1.6s ease-out infinite;
   }
+
+  /* ── Design system additions ── */
+
+  /* Focus states — every field and interactive control gets a visible,
+     on-brand focus ring instead of relying on inconsistent browser defaults. */
+  .vita-field {
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+  .vita-field:focus {
+    border-color: #0F0080;
+    box-shadow: 0 0 0 3px rgba(15, 0, 128, 0.12);
+  }
+  .vita-btn:focus-visible,
+  .vita-tab-btn:focus-visible,
+  .vita-text-link:focus-visible {
+    outline: 2px solid #0F0080;
+    outline-offset: 2px;
+  }
+
+  /* Interactive text states — Rename/Edit/Delete/Cancel-style text
+     actions get real hover feedback instead of looking like static labels. */
+  .vita-text-link {
+    transition: opacity 0.12s ease;
+    text-decoration: none;
+  }
+  .vita-text-link:hover {
+    text-decoration: underline;
+    opacity: 0.75;
+  }
+
+  /* Card hierarchy — two elevation tiers instead of one flat look
+     everywhere. "raised" cards (things you act on) get a resting shadow
+     and lift further on hover; "surface" cards (containers, forms,
+     list wrappers) stay flat with just a quiet border. */
+  .vita-card {
+    border: 1px solid rgba(15, 0, 128, 0.06);
+    box-shadow: 0 1px 3px rgba(15, 0, 128, 0.05);
+  }
+  .vita-surface {
+    border: 1px solid #E4DCD5;
+  }
+
+  /* Responsive grids — auto-fit so multi-column layouts reflow on
+     narrow viewports instead of staying locked at a fixed column count. */
+  .vita-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 12px;
+  }
 `;
 
 const statusStyles = {
@@ -125,21 +194,153 @@ function Pill({ bg, color, children }) {
 function EmptyState({ title, subtitle }) {
   return (
     <div
+      className="vita-surface"
       style={{
         background: "#fff",
         borderRadius: 12,
-        padding: "32px 20px",
+        padding: `${space.xxl}px ${space.lg}px`,
         textAlign: "center",
       }}
     >
-      <p style={{ fontFamily: "Fraunces, serif", fontSize: 16, color: colors.indigo, margin: "0 0 4px" }}>
+      <p style={{ ...type.subheading, color: colors.indigo, margin: "0 0 4px" }}>
         {title}
       </p>
-      <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: colors.faint, margin: 0 }}>
+      <p style={{ ...type.caption, color: colors.faint, margin: 0 }}>
         {subtitle}
       </p>
     </div>
   );
+}
+
+// ── Design system: reusable primitives ────────────
+// A small, consistent set of building blocks so spacing, type, and
+// interaction states don't have to be re-invented (and inevitably drift)
+// every time a new screen needs a button, a form field, or a card.
+
+function Button({ variant = "primary", size = "md", children, style, className = "", ...props }) {
+  const sizePadding = size === "sm" ? "6px 14px" : "10px 20px";
+  const sizeFontSize = size === "sm" ? 12 : 13;
+
+  const variantStyle = {
+    primary: { background: colors.indigo, color: colors.cream, border: "none" },
+    secondary: { background: "#fff", color: colors.indigo, border: `1px solid ${colors.border}` },
+    destructive: { background: "#fff", color: colors.terracottaText, border: `1px solid ${colors.terracottaBg}` },
+  }[variant];
+
+  const isButtonVariant = variant !== "ghost";
+
+  return (
+    <button
+      className={`${isButtonVariant ? "vita-btn" : "vita-text-link"} ${className}`}
+      style={{
+        ...(isButtonVariant
+          ? {
+              ...variantStyle,
+              borderRadius: 10,
+              padding: sizePadding,
+              fontFamily: "Inter, sans-serif",
+              fontSize: sizeFontSize,
+              fontWeight: 500,
+              cursor: "pointer",
+            }
+          : {
+              background: "transparent",
+              border: "none",
+              padding: 0,
+              fontFamily: "Inter, sans-serif",
+              fontSize: 12,
+              color: colors.faint,
+              cursor: "pointer",
+            }),
+        ...style,
+      }}
+      {...props}
+    >
+      {children}
+    </button>
+  );
+}
+
+// A small clickable text action (Rename, Delete, Edit, View project…).
+// Distinct from Button's ghost variant in that it's an inline <span>,
+// matching how these are used inline within cards rather than as
+// standalone controls.
+function TextLink({ tone = "default", children, style, ...props }) {
+  const toneColor = { default: colors.indigo, muted: colors.faint, destructive: colors.terracottaText }[tone];
+  return (
+    <span
+      className="vita-text-link"
+      style={{
+        ...type.caption,
+        color: toneColor,
+        fontWeight: tone === "destructive" ? 500 : 400,
+        cursor: "pointer",
+        ...style,
+      }}
+      {...props}
+    >
+      {children}
+    </span>
+  );
+}
+
+// Label + control pairing for forms, so every field gets a consistent
+// label style and spacing without repeating it by hand each time.
+function FormField({ label, children }) {
+  return (
+    <div style={{ marginBottom: space.md }}>
+      {label && (
+        <p style={{ ...type.label, color: colors.muted, margin: "0 0 6px" }}>{label}</p>
+      )}
+      {children}
+    </div>
+  );
+}
+
+// The title + primary-action row repeated at the top of Tracker,
+// Resumes, and Portfolio — now a single implementation.
+function SectionHeader({ title, actionLabel, onAction }) {
+  return (
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: space.lg }}>
+      <p style={{ ...type.heading, color: colors.indigo, margin: 0 }}>{title}</p>
+      {actionLabel && (
+        <Button size="sm" onClick={onAction}>{actionLabel}</Button>
+      )}
+    </div>
+  );
+}
+
+// The "Delete this X? Yes / Cancel" inline confirm pattern, previously
+// hand-duplicated in both Resumes and Portfolio.
+function ConfirmInline({ label, onConfirm, onCancel }) {
+  return (
+    <div style={{ display: "flex", gap: space.sm, alignItems: "center" }}>
+      <span style={{ ...type.caption, color: colors.terracottaText }}>{label}</span>
+      <TextLink tone="destructive" onClick={onConfirm}>Yes</TextLink>
+      <TextLink tone="muted" onClick={onCancel}>Cancel</TextLink>
+    </div>
+  );
+}
+
+// A raised, actionable content card (resume cards, project cards,
+// dashboard panels) vs. a flat "surface" container (forms, list
+// wrappers) — see the .vita-card / .vita-surface CSS for the tiers.
+function Card({ elevation = "raised", children, style, className = "", ...props }) {
+  return (
+    <div
+      className={`${elevation === "raised" ? "vita-card" : "vita-surface"} ${className}`}
+      style={{ background: "#fff", borderRadius: 12, ...style }}
+      {...props}
+    >
+      {children}
+    </div>
+  );
+}
+
+// Auto-fit responsive grid — replaces fixed "1fr 1fr" columns that
+// don't reflow gracefully on narrow viewports.
+function Grid({ children, style }) {
+  return <div className="vita-grid" style={style}>{children}</div>;
 }
 
 // ── Tracker view ──────────────────────────────────
@@ -194,24 +395,24 @@ function CreateApplicationForm({ onCreated, onCancel }) {
         Track a job you've found, applied to, or want to keep an eye on.
       </p>
 
-      <input value={company} onChange={(e) => setCompany(e.target.value)} placeholder="Company" style={inputStyle} />
-      <input value={roleTitle} onChange={(e) => setRoleTitle(e.target.value)} placeholder="Role title" style={inputStyle} />
+      <input value={company} onChange={(e) => setCompany(e.target.value)} placeholder="Company" className="vita-field" style={inputStyle} />
+      <input value={roleTitle} onChange={(e) => setRoleTitle(e.target.value)} placeholder="Role title" className="vita-field" style={inputStyle} />
       <textarea
         value={description}
         onChange={(e) => setDescription(e.target.value)}
         placeholder="Job description (optional, but needed if you want to scan it later)"
         rows={3}
-        style={{ ...inputStyle, resize: "vertical" }}
+        className="vita-field" style={{ ...inputStyle, resize: "vertical" }}
       />
 
-      <select value={status} onChange={(e) => setStatus(e.target.value)} style={inputStyle}>
+      <select value={status} onChange={(e) => setStatus(e.target.value)} className="vita-field" style={inputStyle}>
         <option value="saved">Saved</option>
         <option value="applied">Applied</option>
         <option value="interviewing">Interviewing</option>
         <option value="closed">Not this time</option>
       </select>
 
-      <select value={resumeId} onChange={(e) => setResumeId(e.target.value)} style={inputStyle}>
+      <select value={resumeId} onChange={(e) => setResumeId(e.target.value)} className="vita-field" style={inputStyle}>
         <option value="">No resume linked yet</option>
         {resumes.map((r) => (
           <option key={r.id} value={r.id}>{r.label}</option>
@@ -301,17 +502,7 @@ function Tracker() {
 
   return (
     <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-        <p style={{ fontFamily: "Fraunces, serif", fontSize: 18, color: colors.indigo, margin: 0 }}>
-          Your applications
-        </p>
-        <button className="vita-btn"
-          onClick={() => setShowForm(true)}
-          style={{ background: colors.indigo, color: colors.cream, border: "none", borderRadius: 10, padding: "8px 16px", fontFamily: "Inter, sans-serif", fontSize: 12, fontWeight: 500, cursor: "pointer" }}
-        >
-          + New application
-        </button>
-      </div>
+      <SectionHeader title="Your applications" actionLabel="+ New application" onAction={() => setShowForm(true)} />
 
       {applications.length === 0 ? (
         <EmptyState title="Nothing tracked yet" subtitle="Applications you save will show up here." />
@@ -431,17 +622,17 @@ function ProjectForm({ initial, onSaved, onCancel }) {
         Show off something you're proud of.
       </p>
 
-      <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Project title" style={inputStyle} />
+      <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Project title" className="vita-field" style={inputStyle} />
       <textarea
         value={description}
         onChange={(e) => setDescription(e.target.value)}
         placeholder="One or two lines on what it is and the impact it had"
         rows={3}
-        style={{ ...inputStyle, resize: "vertical" }}
+        className="vita-field" style={{ ...inputStyle, resize: "vertical" }}
       />
-      <input value={thumbnailUrl} onChange={(e) => setThumbnailUrl(e.target.value)} placeholder="Thumbnail image URL (optional)" style={inputStyle} />
-      <input value={linkUrl} onChange={(e) => setLinkUrl(e.target.value)} placeholder="Link to the project (optional)" style={inputStyle} />
-      <input value={tagsInput} onChange={(e) => setTagsInput(e.target.value)} placeholder="Tags, comma separated — e.g. Figma, Systems" style={inputStyle} />
+      <input value={thumbnailUrl} onChange={(e) => setThumbnailUrl(e.target.value)} placeholder="Thumbnail image URL (optional)" className="vita-field" style={inputStyle} />
+      <input value={linkUrl} onChange={(e) => setLinkUrl(e.target.value)} placeholder="Link to the project (optional)" className="vita-field" style={inputStyle} />
+      <input value={tagsInput} onChange={(e) => setTagsInput(e.target.value)} placeholder="Tags, comma separated — e.g. Figma, Systems" className="vita-field" style={inputStyle} />
 
       {errorMsg && (
         <p style={{ fontFamily: "Inter, sans-serif", fontSize: 12, color: colors.terracottaText, margin: "0 0 10px" }}>
@@ -523,25 +714,14 @@ function Portfolio() {
 
   return (
     <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-        <p style={{ fontFamily: "Fraunces, serif", fontSize: 18, color: colors.indigo, margin: 0 }}>
-          Your portfolio
-        </p>
-        <button
-          className="vita-btn"
-          onClick={() => setFormMode("create")}
-          style={{ background: colors.indigo, color: colors.cream, border: "none", borderRadius: 10, padding: "8px 16px", fontFamily: "Inter, sans-serif", fontSize: 12, fontWeight: 500, cursor: "pointer" }}
-        >
-          + New project
-        </button>
-      </div>
+      <SectionHeader title="Your portfolio" actionLabel="+ New project" onAction={() => setFormMode("create")} />
 
       {projects.length === 0 ? (
         <EmptyState title="No projects yet" subtitle="Add a project to start building your portfolio." />
       ) : (
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        <div className="vita-grid">
           {projects.map((p) => (
-            <div key={p.id} className="vita-card" style={{ background: "#fff", borderRadius: 12, overflow: "hidden" }}>
+            <Card key={p.id} style={{ overflow: "hidden" }}>
               <div
                 style={{
                   height: 90,
@@ -580,6 +760,7 @@ function Portfolio() {
                     href={p.link_url}
                     target="_blank"
                     rel="noopener noreferrer"
+                    className="vita-text-link"
                     style={{ display: "block", fontFamily: "Inter, sans-serif", fontSize: 11, color: colors.indigo, marginBottom: 8, textDecoration: "none" }}
                   >
                     View project →
@@ -587,19 +768,19 @@ function Portfolio() {
                 )}
 
                 {confirmDeleteId === p.id ? (
-                  <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                    <span style={{ fontFamily: "Inter, sans-serif", fontSize: 11, color: colors.terracottaText }}>Delete this project?</span>
-                    <span onClick={() => deleteProject(p.id)} style={{ fontFamily: "Inter, sans-serif", fontSize: 11, color: colors.terracottaText, fontWeight: 500, cursor: "pointer" }}>Yes</span>
-                    <span onClick={() => setConfirmDeleteId(null)} style={{ fontFamily: "Inter, sans-serif", fontSize: 11, color: colors.faint, cursor: "pointer" }}>Cancel</span>
-                  </div>
+                  <ConfirmInline
+                    label="Delete this project?"
+                    onConfirm={() => deleteProject(p.id)}
+                    onCancel={() => setConfirmDeleteId(null)}
+                  />
                 ) : (
                   <div style={{ display: "flex", gap: 10 }}>
-                    <span onClick={() => setFormMode(p)} style={{ fontFamily: "Inter, sans-serif", fontSize: 11, color: colors.indigo, cursor: "pointer" }}>Edit</span>
-                    <span onClick={() => setConfirmDeleteId(p.id)} style={{ fontFamily: "Inter, sans-serif", fontSize: 11, color: colors.faint, cursor: "pointer" }}>Delete</span>
+                    <TextLink onClick={() => setFormMode(p)}>Edit</TextLink>
+                    <TextLink tone="muted" onClick={() => setConfirmDeleteId(p.id)}>Delete</TextLink>
                   </div>
                 )}
               </div>
-            </div>
+            </Card>
           ))}
         </div>
       )}
@@ -699,20 +880,20 @@ function Scanner() {
           value={company}
           onChange={(e) => setCompany(e.target.value)}
           placeholder="Company"
-          style={inputStyle}
+          className="vita-field" style={inputStyle}
         />
         <input
           value={roleTitle}
           onChange={(e) => setRoleTitle(e.target.value)}
           placeholder="Role title"
-          style={inputStyle}
+          className="vita-field" style={inputStyle}
         />
         <textarea
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           placeholder="Paste the full job description..."
           rows={5}
-          style={{ ...inputStyle, resize: "vertical" }}
+          className="vita-field" style={{ ...inputStyle, resize: "vertical" }}
         />
 
         <p style={{ fontFamily: "Inter, sans-serif", fontSize: 12, fontWeight: 500, color: colors.indigo, margin: "12px 0 8px" }}>
@@ -721,7 +902,7 @@ function Scanner() {
         <select
           value={selectedResumeId}
           onChange={(e) => setSelectedResumeId(e.target.value)}
-          style={inputStyle}
+          className="vita-field" style={inputStyle}
         >
           <option value="">Select a resume…</option>
           {resumes.map((r) => (
@@ -1259,7 +1440,7 @@ function InterviewChat() {
           Pick an application to prep for, or start a general practice session.
         </p>
 
-        <select value={selectedAppId} onChange={(e) => setSelectedAppId(e.target.value)} style={inputStyle}>
+        <select value={selectedAppId} onChange={(e) => setSelectedAppId(e.target.value)} className="vita-field" style={inputStyle}>
           <option value="">General practice (no specific job)</option>
           {applications.map((a) => (
             <option key={a.id} value={a.id}>{a.company} — {a.role_title}</option>
@@ -1341,7 +1522,7 @@ function InterviewChat() {
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && sendMessage()}
           placeholder="Type your answer..."
-          style={{ ...inputStyle, marginBottom: 0, flex: 1 }}
+          className="vita-field" style={{ ...inputStyle, marginBottom: 0, flex: 1 }}
         />
         <button className="vita-btn"
           onClick={sendMessage}
@@ -1396,10 +1577,10 @@ function AuthScreen({ onAuthenticated, initialMode = "login", onBack }) {
         </p>
 
         {mode === "signup" && (
-          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Full name" style={inputStyle} />
+          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Full name" className="vita-field" style={inputStyle} />
         )}
-        <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" style={inputStyle} />
-        <input value={password} onChange={(e) => setPassword(e.target.value)} type="password" placeholder="Password" style={inputStyle} />
+        <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" className="vita-field" style={inputStyle} />
+        <input value={password} onChange={(e) => setPassword(e.target.value)} type="password" placeholder="Password" className="vita-field" style={inputStyle} />
 
         {errorMsg && (
           <p style={{ fontFamily: "Inter, sans-serif", fontSize: 12, color: colors.terracottaText, margin: "0 0 10px" }}>
@@ -1532,7 +1713,7 @@ function CreateResumeForm({ onCreated, onCancel }) {
         value={label}
         onChange={(e) => setLabel(e.target.value)}
         placeholder="Resume name, e.g. Product Design"
-        style={inputStyle}
+        className="vita-field" style={inputStyle}
       />
 
       {sections.map((section, sIdx) => (
@@ -1541,7 +1722,7 @@ function CreateResumeForm({ onCreated, onCancel }) {
             <select
               value={section.type}
               onChange={(e) => updateSectionType(sIdx, e.target.value)}
-              style={{ ...inputStyle, marginBottom: 0, width: "auto", padding: "6px 10px", fontSize: 12 }}
+              className="vita-field" style={{ ...inputStyle, marginBottom: 0, width: "auto", padding: "6px 10px", fontSize: 12 }}
             >
               {SECTION_TYPES.map((t) => (
                 <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>
@@ -1563,7 +1744,7 @@ function CreateResumeForm({ onCreated, onCancel }) {
                 value={bullet}
                 onChange={(e) => updateBullet(sIdx, bIdx, e.target.value)}
                 placeholder="Add a line..."
-                style={{ ...inputStyle, marginBottom: 0, flex: 1, background: "#fff" }}
+                className="vita-field" style={{ ...inputStyle, marginBottom: 0, flex: 1, background: "#fff" }}
               />
               {section.bullets.length > 1 && (
                 <span
@@ -1704,7 +1885,7 @@ function Resumes() {
       ) : resumes.length === 0 ? (
         <EmptyState title="No resumes yet" subtitle="Create one to start scanning it against job postings." />
       ) : (
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        <div className="vita-grid">
           {resumes.map((r) => (
             <div key={r.id} className="vita-card" style={{ background: "#fff", borderRadius: 12, padding: "14px 16px" }}>
               {editingId === r.id ? (
@@ -1714,11 +1895,11 @@ function Resumes() {
                     onChange={(e) => setDraftLabel(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && saveRename(r.id)}
                     autoFocus
-                    style={{ ...inputStyle, marginBottom: 6, fontSize: 13, padding: "6px 10px" }}
+                    className="vita-field" style={{ ...inputStyle, marginBottom: 6, fontSize: 13, padding: "6px 10px" }}
                   />
                   <div style={{ display: "flex", gap: 8 }}>
-                    <span onClick={() => saveRename(r.id)} style={{ fontFamily: "Inter, sans-serif", fontSize: 11, color: colors.indigo, cursor: "pointer" }}>Save</span>
-                    <span onClick={() => setEditingId(null)} style={{ fontFamily: "Inter, sans-serif", fontSize: 11, color: colors.faint, cursor: "pointer" }}>Cancel</span>
+                    <span className="vita-text-link" onClick={() => saveRename(r.id)} style={{ fontFamily: "Inter, sans-serif", fontSize: 11, color: colors.indigo, cursor: "pointer" }}>Save</span>
+                    <span className="vita-text-link" onClick={() => setEditingId(null)} style={{ fontFamily: "Inter, sans-serif", fontSize: 11, color: colors.faint, cursor: "pointer" }}>Cancel</span>
                   </div>
                 </div>
               ) : (
@@ -1735,13 +1916,13 @@ function Resumes() {
                 confirmDeleteId === r.id ? (
                   <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                     <span style={{ fontFamily: "Inter, sans-serif", fontSize: 11, color: colors.terracottaText }}>Delete this resume?</span>
-                    <span onClick={() => confirmDelete(r.id)} style={{ fontFamily: "Inter, sans-serif", fontSize: 11, color: colors.terracottaText, fontWeight: 500, cursor: "pointer" }}>Yes</span>
-                    <span onClick={() => setConfirmDeleteId(null)} style={{ fontFamily: "Inter, sans-serif", fontSize: 11, color: colors.faint, cursor: "pointer" }}>Cancel</span>
+                    <span className="vita-text-link" onClick={() => confirmDelete(r.id)} style={{ fontFamily: "Inter, sans-serif", fontSize: 11, color: colors.terracottaText, fontWeight: 500, cursor: "pointer" }}>Yes</span>
+                    <span className="vita-text-link" onClick={() => setConfirmDeleteId(null)} style={{ fontFamily: "Inter, sans-serif", fontSize: 11, color: colors.faint, cursor: "pointer" }}>Cancel</span>
                   </div>
                 ) : (
                   <div style={{ display: "flex", gap: 10 }}>
-                    <span onClick={() => startRename(r)} style={{ fontFamily: "Inter, sans-serif", fontSize: 11, color: colors.indigo, cursor: "pointer" }}>Rename</span>
-                    <span onClick={() => setConfirmDeleteId(r.id)} style={{ fontFamily: "Inter, sans-serif", fontSize: 11, color: colors.faint, cursor: "pointer" }}>Delete</span>
+                    <span className="vita-text-link" onClick={() => startRename(r)} style={{ fontFamily: "Inter, sans-serif", fontSize: 11, color: colors.indigo, cursor: "pointer" }}>Rename</span>
+                    <span className="vita-text-link" onClick={() => setConfirmDeleteId(r.id)} style={{ fontFamily: "Inter, sans-serif", fontSize: 11, color: colors.faint, cursor: "pointer" }}>Delete</span>
                   </div>
                 )
               )}
@@ -1844,337 +2025,3 @@ function LandingPage({ onGetStarted, onLogin }) {
             maxWidth: 460,
           }}
         >
-          Tailor your resume, track every application, prep for interviews, and showcase your work —
-          all in one place that feels like it's actually on your side.
-        </p>
-        <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
-          <button
-            onClick={onGetStarted}
-            style={{
-              background: colors.indigo,
-              color: colors.cream,
-              border: "none",
-              borderRadius: 10,
-              padding: "12px 26px",
-              fontFamily: "Inter, sans-serif",
-              fontSize: 14,
-              fontWeight: 500,
-              cursor: "pointer",
-            }}
-          >
-            Get started — it's free
-          </button>
-          <button
-            onClick={onLogin}
-            style={{
-              background: "#fff",
-              color: colors.indigo,
-              border: `0.5px solid ${colors.border}`,
-              borderRadius: 10,
-              padding: "12px 26px",
-              fontFamily: "Inter, sans-serif",
-              fontSize: 14,
-              fontWeight: 500,
-              cursor: "pointer",
-            }}
-          >
-            I already have an account
-          </button>
-        </div>
-      </div>
-
-      {/* Features */}
-      <div style={{ background: "#fff", padding: "44px 28px" }}>
-        <p
-          style={{
-            fontFamily: "Fraunces, serif",
-            fontSize: 22,
-            fontWeight: 600,
-            color: colors.indigo,
-            textAlign: "center",
-            margin: "0 0 8px",
-          }}
-        >
-          Everything the job hunt actually needs
-        </p>
-        <p
-          style={{
-            fontFamily: "Inter, sans-serif",
-            fontSize: 13,
-            color: colors.faint,
-            textAlign: "center",
-            margin: "0 auto 32px",
-            maxWidth: 420,
-          }}
-        >
-          Five tools, one consistent, encouraging experience — nothing here is designed to make you feel behind.
-        </p>
-
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-            gap: 16,
-          }}
-        >
-          {features.map((f) => (
-            <div
-              key={f.title}
-              style={{
-                background: colors.cream,
-                borderRadius: 12,
-                padding: "20px 18px",
-              }}
-            >
-              <div
-                style={{
-                  width: 40,
-                  height: 40,
-                  borderRadius: 10,
-                  background: colors.lavenderBg,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: 18,
-                  marginBottom: 12,
-                }}
-              >
-                {f.icon}
-              </div>
-              <p style={{ fontFamily: "Inter, sans-serif", fontSize: 14, fontWeight: 600, color: colors.ink, margin: "0 0 6px" }}>
-                {f.title}
-              </p>
-              <p style={{ fontFamily: "Inter, sans-serif", fontSize: 12, color: colors.muted, lineHeight: 1.55, margin: 0 }}>
-                {f.description}
-              </p>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Closing CTA */}
-      <div style={{ textAlign: "center", padding: "40px 28px" }}>
-        <p style={{ fontFamily: "Fraunces, serif", fontSize: 20, color: colors.indigo, margin: "0 0 16px" }}>
-          Ready to feel a little less alone in this?
-        </p>
-        <button
-          onClick={onGetStarted}
-          style={{
-            background: colors.indigo,
-            color: colors.cream,
-            border: "none",
-            borderRadius: 10,
-            padding: "12px 28px",
-            fontFamily: "Inter, sans-serif",
-            fontSize: 14,
-            fontWeight: 500,
-            cursor: "pointer",
-          }}
-        >
-          Get started — it's free
-        </button>
-      </div>
-    </div>
-  );
-}
-
-// ── Settings view ──────────────────────────────────
-function Settings({ user, onUpdated }) {
-  const [name, setName] = useState(user.name || "");
-  const [weeklyGoal, setWeeklyGoal] = useState(user.weekly_goal || 5);
-  const [avatarUrl, setAvatarUrl] = useState(user.avatar_url || "");
-  const [saving, setSaving] = useState(false);
-  const [savedMsg, setSavedMsg] = useState("");
-  const [errorMsg, setErrorMsg] = useState("");
-
-  const save = async () => {
-    setSaving(true);
-    setErrorMsg("");
-    setSavedMsg("");
-    try {
-      const updated = await apiFetch("/auth/me", {
-        method: "PATCH",
-        body: JSON.stringify({
-          name: name.trim() || undefined,
-          weekly_goal: Number(weeklyGoal),
-          avatar_url: avatarUrl.trim() || undefined,
-        }),
-      });
-      onUpdated(updated);
-      setSavedMsg("Saved.");
-    } catch (err) {
-      setErrorMsg(err.message);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <div style={{ background: "#fff", borderRadius: 12, padding: "20px 22px", maxWidth: 420 }}>
-      <p style={{ fontFamily: "Fraunces, serif", fontSize: 18, color: colors.indigo, margin: "0 0 16px" }}>
-        Settings
-      </p>
-
-      <p style={{ fontFamily: "Inter, sans-serif", fontSize: 11, fontWeight: 500, color: colors.muted, margin: "0 0 6px" }}>
-        Name
-      </p>
-      <input value={name} onChange={(e) => setName(e.target.value)} style={inputStyle} />
-
-      <p style={{ fontFamily: "Inter, sans-serif", fontSize: 11, fontWeight: 500, color: colors.muted, margin: "0 0 6px" }}>
-        Weekly application goal
-      </p>
-      <input
-        type="number"
-        min={1}
-        value={weeklyGoal}
-        onChange={(e) => setWeeklyGoal(e.target.value)}
-        style={inputStyle}
-      />
-
-      <p style={{ fontFamily: "Inter, sans-serif", fontSize: 11, fontWeight: 500, color: colors.muted, margin: "0 0 6px" }}>
-        Avatar image URL
-      </p>
-      <input
-        value={avatarUrl}
-        onChange={(e) => setAvatarUrl(e.target.value)}
-        placeholder="https://... (optional — we'll use your initials otherwise)"
-        style={inputStyle}
-      />
-
-      {errorMsg && (
-        <p style={{ fontFamily: "Inter, sans-serif", fontSize: 12, color: colors.terracottaText, margin: "0 0 10px" }}>
-          {errorMsg}
-        </p>
-      )}
-      {savedMsg && (
-        <p style={{ fontFamily: "Inter, sans-serif", fontSize: 12, color: colors.indigo, margin: "0 0 10px" }}>
-          {savedMsg}
-        </p>
-      )}
-
-      <button className="vita-btn"
-        onClick={save}
-        disabled={saving}
-        style={{ background: colors.indigo, color: colors.cream, border: "none", borderRadius: 10, padding: "10px 20px", fontFamily: "Inter, sans-serif", fontSize: 13, fontWeight: 500, cursor: "pointer", opacity: saving ? 0.6 : 1 }}
-      >
-        {saving ? "Saving…" : "Save changes"}
-      </button>
-    </div>
-  );
-}
-
-// ── App shell ──────────────────────────────────────
-export default function VitaApp() {
-  const [tab, setTab] = useState("dashboard");
-  const [user, setUser] = useState(null);
-  const [checkingAuth, setCheckingAuth] = useState(true);
-  const [authView, setAuthView] = useState("landing"); // landing | login | signup
-
-  // On load, check if a saved token still works — keeps you logged in
-  // across page refreshes instead of forcing a fresh login every time.
-  useEffect(() => {
-    const token = localStorage.getItem("vita_token");
-    if (!token) {
-      setCheckingAuth(false);
-      return;
-    }
-    apiFetch("/auth/me")
-      .then(setUser)
-      .catch(() => localStorage.removeItem("vita_token"))
-      .finally(() => setCheckingAuth(false));
-  }, []);
-
-  const logout = () => {
-    localStorage.removeItem("vita_token");
-    setUser(null);
-  };
-
-  if (checkingAuth) {
-    return (
-      <div style={{ background: colors.cream, minHeight: 500, padding: 24, borderRadius: 16 }}>
-        <EmptyState title="Loading…" subtitle="Just a moment." />
-      </div>
-    );
-  }
-
-  if (!user) {
-    if (authView === "landing") {
-      return (
-        <LandingPage
-          onGetStarted={() => setAuthView("signup")}
-          onLogin={() => setAuthView("login")}
-        />
-      );
-    }
-    return (
-      <AuthScreen
-        initialMode={authView}
-        onAuthenticated={setUser}
-        onBack={() => setAuthView("landing")}
-      />
-    );
-  }
-
-  return (
-    <div style={{ background: colors.cream, minHeight: 500, padding: 24, borderRadius: 16 }}>
-      <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500&family=Fraunces:wght@500&display=swap" rel="stylesheet" />
-      <style>{globalStyles}</style>
-
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-        <p style={{ fontFamily: "Fraunces, serif", fontSize: 22, fontWeight: 500, color: colors.indigo, margin: 0 }}>
-          Vita
-        </p>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <span style={{ fontFamily: "Inter, sans-serif", fontSize: 12, color: colors.muted }}>{user.name}</span>
-          <button
-            onClick={logout}
-            style={{ background: "transparent", border: `0.5px solid ${colors.border}`, borderRadius: 20, padding: "4px 12px", fontFamily: "Inter, sans-serif", fontSize: 11, color: colors.faint, cursor: "pointer" }}
-          >
-            Log out
-          </button>
-        </div>
-      </div>
-
-      <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
-        {[
-          { key: "dashboard", label: "Dashboard" },
-          { key: "resumes", label: "Resumes" },
-          { key: "scanner", label: "Scanner" },
-          { key: "tracker", label: "Tracker" },
-          { key: "chat", label: "Interview Prep" },
-          { key: "portfolio", label: "Portfolio" },
-          { key: "settings", label: "Settings" },
-        ].map((t) => (
-          <button
-            key={t.key}
-            className="vita-tab-btn"
-            onClick={() => setTab(t.key)}
-            style={{
-              background: tab === t.key ? colors.indigo : "#fff",
-              color: tab === t.key ? colors.cream : colors.muted,
-              border: tab === t.key ? "none" : `0.5px solid ${colors.border}`,
-              borderRadius: 20,
-              padding: "6px 16px",
-              fontFamily: "Inter, sans-serif",
-              fontSize: 12,
-              fontWeight: 500,
-              cursor: "pointer",
-            }}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
-
-      <div key={tab} className="vita-fade-in">
-        {tab === "dashboard" && <Dashboard />}
-        {tab === "resumes" && <Resumes />}
-        {tab === "scanner" && <Scanner />}
-        {tab === "tracker" && <Tracker />}
-        {tab === "chat" && <InterviewChat />}
-        {tab === "portfolio" && <Portfolio />}
-        {tab === "settings" && <Settings user={user} onUpdated={setUser} />}
-      </div>
-    </div>
-  );
-}
