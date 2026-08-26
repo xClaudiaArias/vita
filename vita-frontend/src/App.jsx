@@ -2025,3 +2025,343 @@ function LandingPage({ onGetStarted, onLogin }) {
             maxWidth: 460,
           }}
         >
+          Tailor your resume, track every application, prep for interviews, and showcase your work —
+          all in one place that feels like it's actually on your side.
+        </p>
+        <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
+          <button
+            onClick={onGetStarted}
+            style={{
+              background: colors.indigo,
+              color: colors.cream,
+              border: "none",
+              borderRadius: 10,
+              padding: "12px 26px",
+              fontFamily: "Inter, sans-serif",
+              fontSize: 14,
+              fontWeight: 500,
+              cursor: "pointer",
+            }}
+          >
+            Get started — it's free
+          </button>
+          <button
+            onClick={onLogin}
+            style={{
+              background: "#fff",
+              color: colors.indigo,
+              border: `0.5px solid ${colors.border}`,
+              borderRadius: 10,
+              padding: "12px 26px",
+              fontFamily: "Inter, sans-serif",
+              fontSize: 14,
+              fontWeight: 500,
+              cursor: "pointer",
+            }}
+          >
+            I already have an account
+          </button>
+        </div>
+      </div>
+
+      {/* Features */}
+      <div style={{ background: "#fff", padding: "44px 28px" }}>
+        <p
+          style={{
+            fontFamily: "Fraunces, serif",
+            fontSize: 22,
+            fontWeight: 600,
+            color: colors.indigo,
+            textAlign: "center",
+            margin: "0 0 8px",
+          }}
+        >
+          Everything the job hunt actually needs
+        </p>
+        <p
+          style={{
+            fontFamily: "Inter, sans-serif",
+            fontSize: 13,
+            color: colors.faint,
+            textAlign: "center",
+            margin: "0 auto 32px",
+            maxWidth: 420,
+          }}
+        >
+          Five tools, one consistent, encouraging experience — nothing here is designed to make you feel behind.
+        </p>
+
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+            gap: 16,
+          }}
+        >
+          {features.map((f) => (
+            <div
+              key={f.title}
+              style={{
+                background: colors.cream,
+                borderRadius: 12,
+                padding: "20px 18px",
+              }}
+            >
+              <div
+                style={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: 10,
+                  background: colors.lavenderBg,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: 18,
+                  marginBottom: 12,
+                }}
+              >
+                {f.icon}
+              </div>
+              <p style={{ fontFamily: "Inter, sans-serif", fontSize: 14, fontWeight: 600, color: colors.ink, margin: "0 0 6px" }}>
+                {f.title}
+              </p>
+              <p style={{ fontFamily: "Inter, sans-serif", fontSize: 12, color: colors.muted, lineHeight: 1.55, margin: 0 }}>
+                {f.description}
+              </p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Closing CTA */}
+      <div style={{ textAlign: "center", padding: "40px 28px" }}>
+        <p style={{ fontFamily: "Fraunces, serif", fontSize: 20, color: colors.indigo, margin: "0 0 16px" }}>
+          Ready to feel a little less alone in this?
+        </p>
+        <button
+          onClick={onGetStarted}
+          style={{
+            background: colors.indigo,
+            color: colors.cream,
+            border: "none",
+            borderRadius: 10,
+            padding: "12px 28px",
+            fontFamily: "Inter, sans-serif",
+            fontSize: 14,
+            fontWeight: 500,
+            cursor: "pointer",
+          }}
+        >
+          Get started — it's free
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── Settings view ──────────────────────────────────
+function Settings({ user, onUpdated }) {
+  const [name, setName] = useState(user.name || "");
+  const [weeklyGoal, setWeeklyGoal] = useState(user.weekly_goal || 5);
+  const [avatarUrl, setAvatarUrl] = useState(user.avatar_url || "");
+  const [saving, setSaving] = useState(false);
+  const [savedMsg, setSavedMsg] = useState("");
+  const [errorMsg, setErrorMsg] = useState("");
+
+  const save = async () => {
+    setSaving(true);
+    setErrorMsg("");
+    setSavedMsg("");
+    try {
+      const updated = await apiFetch("/auth/me", {
+        method: "PATCH",
+        body: JSON.stringify({
+          name: name.trim() || undefined,
+          weekly_goal: Number(weeklyGoal),
+          avatar_url: avatarUrl.trim() || undefined,
+        }),
+      });
+      onUpdated(updated);
+      setSavedMsg("Saved.");
+    } catch (err) {
+      setErrorMsg(err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div style={{ background: "#fff", borderRadius: 12, padding: "20px 22px", maxWidth: 420 }}>
+      <p style={{ fontFamily: "Fraunces, serif", fontSize: 18, color: colors.indigo, margin: "0 0 16px" }}>
+        Settings
+      </p>
+
+      <p style={{ fontFamily: "Inter, sans-serif", fontSize: 11, fontWeight: 500, color: colors.muted, margin: "0 0 6px" }}>
+        Name
+      </p>
+      <input value={name} onChange={(e) => setName(e.target.value)} className="vita-field" style={inputStyle} />
+
+      <p style={{ fontFamily: "Inter, sans-serif", fontSize: 11, fontWeight: 500, color: colors.muted, margin: "0 0 6px" }}>
+        Weekly application goal
+      </p>
+      <input
+        type="number"
+        min={1}
+        value={weeklyGoal}
+        onChange={(e) => setWeeklyGoal(e.target.value)}
+        className="vita-field" style={inputStyle}
+      />
+
+      <p style={{ fontFamily: "Inter, sans-serif", fontSize: 11, fontWeight: 500, color: colors.muted, margin: "0 0 6px" }}>
+        Avatar image URL
+      </p>
+      <input
+        value={avatarUrl}
+        onChange={(e) => setAvatarUrl(e.target.value)}
+        placeholder="https://... (optional — we'll use your initials otherwise)"
+        className="vita-field" style={inputStyle}
+      />
+
+      {errorMsg && (
+        <p style={{ fontFamily: "Inter, sans-serif", fontSize: 12, color: colors.terracottaText, margin: "0 0 10px" }}>
+          {errorMsg}
+        </p>
+      )}
+      {savedMsg && (
+        <p style={{ fontFamily: "Inter, sans-serif", fontSize: 12, color: colors.indigo, margin: "0 0 10px" }}>
+          {savedMsg}
+        </p>
+      )}
+
+      <button className="vita-btn"
+        onClick={save}
+        disabled={saving}
+        style={{ background: colors.indigo, color: colors.cream, border: "none", borderRadius: 10, padding: "10px 20px", fontFamily: "Inter, sans-serif", fontSize: 13, fontWeight: 500, cursor: "pointer", opacity: saving ? 0.6 : 1 }}
+      >
+        {saving ? "Saving…" : "Save changes"}
+      </button>
+    </div>
+  );
+}
+
+// ── App shell ──────────────────────────────────────
+export default function VitaApp() {
+  const [tab, setTab] = useState("dashboard");
+  const [user, setUser] = useState(null);
+  const [checkingAuth, setCheckingAuth] = useState(true);
+  const [authView, setAuthView] = useState("landing"); // landing | login | signup
+
+  // On load, check if a saved token still works — keeps you logged in
+  // across page refreshes instead of forcing a fresh login every time.
+  useEffect(() => {
+    const token = localStorage.getItem("vita_token");
+    if (!token) {
+      setCheckingAuth(false);
+      return;
+    }
+    apiFetch("/auth/me")
+      .then(setUser)
+      .catch(() => localStorage.removeItem("vita_token"))
+      .finally(() => setCheckingAuth(false));
+  }, []);
+
+  const logout = () => {
+    localStorage.removeItem("vita_token");
+    setUser(null);
+  };
+
+  if (checkingAuth) {
+    return (
+      <div style={{ background: colors.cream, minHeight: 500, padding: 24, borderRadius: 16 }}>
+        <EmptyState title="Loading…" subtitle="Just a moment." />
+      </div>
+    );
+  }
+
+  if (!user) {
+    if (authView === "landing") {
+      return (
+        <LandingPage
+          onGetStarted={() => setAuthView("signup")}
+          onLogin={() => setAuthView("login")}
+        />
+      );
+    }
+    return (
+      <AuthScreen
+        initialMode={authView}
+        onAuthenticated={setUser}
+        onBack={() => setAuthView("landing")}
+      />
+    );
+  }
+
+  return (
+    <div style={{ background: colors.cream, minHeight: 500, padding: space.lg, borderRadius: 16 }}>
+      <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500&family=Fraunces:wght@500&display=swap" rel="stylesheet" />
+      <style>{globalStyles}</style>
+
+      <div style={{ maxWidth: contentMaxWidth, margin: "0 auto" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: space.lg }}>
+          <p style={{ ...type.heading, fontSize: 22, color: colors.indigo, margin: 0 }}>
+            Vita
+          </p>
+          {/* Account cluster: name, Settings, and Log out grouped together and
+              visually distinct from the core-tool tabs below — Settings is an
+              account-level action, not a daily tool, so it doesn't compete
+              with Dashboard/Scanner/Tracker for attention. */}
+          <div style={{ display: "flex", alignItems: "center", gap: space.md }}>
+            <span style={{ ...type.caption, color: colors.muted }}>{user.name}</span>
+            <TextLink tone="muted" onClick={() => setTab("settings")}>Settings</TextLink>
+            <button
+              onClick={logout}
+              style={{ background: "transparent", border: `1px solid ${colors.border}`, borderRadius: 20, padding: "4px 12px", fontFamily: "Inter, sans-serif", fontSize: 11, color: colors.faint, cursor: "pointer" }}
+            >
+              Log out
+            </button>
+          </div>
+        </div>
+
+        <div style={{ display: "flex", gap: space.sm, marginBottom: space.lg, flexWrap: "wrap" }}>
+          {[
+            { key: "dashboard", label: "Dashboard" },
+            { key: "resumes", label: "Resumes" },
+            { key: "scanner", label: "Scanner" },
+            { key: "tracker", label: "Tracker" },
+            { key: "chat", label: "Interview Prep" },
+            { key: "portfolio", label: "Portfolio" },
+          ].map((t) => (
+            <button
+              key={t.key}
+              className="vita-tab-btn"
+              onClick={() => setTab(t.key)}
+              style={{
+                background: tab === t.key ? colors.indigo : "#fff",
+                color: tab === t.key ? colors.cream : colors.muted,
+                border: tab === t.key ? "none" : `1px solid ${colors.border}`,
+                borderRadius: 20,
+                padding: "6px 16px",
+                fontFamily: "Inter, sans-serif",
+                fontSize: 12,
+                fontWeight: 500,
+                cursor: "pointer",
+              }}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+
+        <div key={tab} className="vita-fade-in">
+          {tab === "dashboard" && <Dashboard />}
+          {tab === "resumes" && <Resumes />}
+          {tab === "scanner" && <Scanner />}
+          {tab === "tracker" && <Tracker />}
+          {tab === "chat" && <InterviewChat />}
+          {tab === "portfolio" && <Portfolio />}
+          {tab === "settings" && <Settings user={user} onUpdated={setUser} />}
+        </div>
+      </div>
+    </div>
+  );
+}
