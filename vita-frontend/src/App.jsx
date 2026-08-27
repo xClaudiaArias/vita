@@ -141,6 +141,26 @@ const globalStyles = `
     grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
     gap: 12px;
   }
+
+  /* Scanner-specific motion — only where it reinforces a real state
+     change (job recognized, resume selected, scan in progress). */
+  @keyframes vitaBreathe {
+    0%, 100% { opacity: 0.55; }
+    50% { opacity: 1; }
+  }
+  .vita-breathe {
+    animation: vitaBreathe 1.6s ease-in-out infinite;
+  }
+  .vita-check-pop {
+    animation: vitaPop 0.35s ease;
+  }
+  .vita-resume-option {
+    transition: border-color 0.15s ease, background 0.15s ease, transform 0.12s ease;
+    cursor: pointer;
+  }
+  .vita-resume-option:hover {
+    transform: translateY(-1px);
+  }
 `;
 
 const statusStyles = {
@@ -789,13 +809,19 @@ function Portfolio() {
 }
 
 // ── Resume Scanner view ───────────────────────────
-function Scanner() {
-  const [step, setStep] = useState("input"); // input | scanning | results | confirmation | editor | error
+function Scanner({ onNavigateToResumes }) {
+  // Journey: capture (paste the job) → recognize (confirm company/role) →
+  // resume (pick which resume) → scanning → results → confirmation → editor
+  const [step, setStep] = useState("capture");
   const [resumes, setResumes] = useState([]);
   const [selectedResumeId, setSelectedResumeId] = useState("");
   const [company, setCompany] = useState("");
   const [roleTitle, setRoleTitle] = useState("");
   const [description, setDescription] = useState("");
+  const [sourceUrl, setSourceUrl] = useState("");
+  const [captureText, setCaptureText] = useState("");
+  const [urlSavedNotice, setUrlSavedNotice] = useState(false);
+  const [jobId, setJobId] = useState(null);
   const [scan, setScan] = useState(null);
   const [errorMsg, setErrorMsg] = useState("");
   const [resumeDetail, setResumeDetail] = useState(null);
@@ -803,22 +829,42 @@ function Scanner() {
   const [editingBulletId, setEditingBulletId] = useState(null);
   const [draftText, setDraftText] = useState("");
   const [openReasonId, setOpenReasonId] = useState(null);
+  const [editingSuggestionId, setEditingSuggestionId] = useState(null);
+  const [suggestionDraft, setSuggestionDraft] = useState("");
 
   useEffect(() => {
     apiFetch("/resumes").then(setResumes).catch(() => {});
   }, []);
 
+  // A bare URL (no spaces, starts with http) can't actually be fetched from
+  // here — there's no backend URL-parsing capability. So we save it as a
+  // reference (source_url, which the job-postings API already accepts) and
+  // ask for the real text, rather than pretending we can read the page.
+  const handleCaptureContinue = () => {
+    const trimmed = captureText.trim();
+    if (!trimmed) return;
+    const isBareUrl = /^https?:\/\/\S+$/.test(trimmed);
+    if (isBareUrl) {
+      setSourceUrl(trimmed);
+      setCaptureText("");
+      setUrlSavedNotice(true);
+      return;
+    }
+    setDescription(trimmed);
+    setUrlSavedNotice(false);
+    setStep("recognize");
+  };
+
   const runScan = async () => {
     setStep("scanning");
     setErrorMsg("");
     try {
-      // First store the job posting
       const job = await apiFetch("/job-postings", {
         method: "POST",
-        body: JSON.stringify({ company, role_title: roleTitle, raw_description: description }),
+        body: JSON.stringify({ company, role_title: roleTitle, source_url: sourceUrl || null, raw_description: description }),
       });
+      setJobId(job.id);
 
-      // Then run the scan against the selected resume
       const scanData = await apiFetch("/scans", {
         method: "POST",
         body: JSON.stringify({ resume_id: selectedResumeId, job_posting_id: job.id }),
@@ -832,17 +878,28 @@ function Scanner() {
     }
   };
 
-  const handleSuggestion = async (suggestionId, action) => {
-    await apiFetch(`/scans/suggestions/${suggestionId}`, {
+  // editedText is optional — when provided (from the inline "Edit" flow),
+  // the backend applies that wording instead of its own suggested_text.
+  const handleSuggestion = async (suggestionId, action, editedText) => {
+    const body = editedText ? { action, edited_text: editedText } : { action };
+    const result = await apiFetch(`/scans/suggestions/${suggestionId}`, {
       method: "PATCH",
-      body: JSON.stringify({ action }),
+      body: JSON.stringify(body),
     });
     setScan((prev) => ({
       ...prev,
       suggestions: prev.suggestions.map((s) =>
-        s.id === suggestionId ? { ...s, status: action === "accept" ? "accepted" : "skipped" } : s
+        s.id === suggestionId
+          ? { ...s, status: action === "accept" ? "accepted" : "skipped", suggested_text: result.suggested_text || s.suggested_text }
+          : s
       ),
     }));
+    setEditingSuggestionId(null);
+  };
+
+  const startEditSuggestion = (s) => {
+    setEditingSuggestionId(s.id);
+    setSuggestionDraft(s.suggested_text);
   };
 
   const loadResume = async (resumeId) => {
@@ -865,91 +922,155 @@ function Scanner() {
     loadResume(selectedResumeId);
   };
 
-  // ── Job input step ──
-  if (step === "input" || step === "scanning") {
+  // ── Step 1: Capture — the job posting itself is the primary interaction ──
+  if (step === "capture") {
     return (
-      <div style={{ background: "#fff", borderRadius: 12, padding: "20px 22px" }}>
-        <p style={{ fontFamily: "Fraunces, serif", fontSize: 18, color: colors.indigo, margin: "0 0 4px" }}>
-          What are we applying to?
+      <Card elevation="surface" style={{ padding: "24px 26px" }}>
+        <p style={{ ...type.display, fontSize: 24, color: colors.indigo, margin: "0 0 6px" }}>
+          Let's see how you match.
         </p>
-        <p style={{ fontFamily: "Inter, sans-serif", fontSize: 12, color: colors.faint, margin: "0 0 16px" }}>
-          Paste the job details below.
+        <p style={{ ...type.body, color: colors.muted, margin: "0 0 18px", maxWidth: 440 }}>
+          Paste a job you're interested in — a link or the full description works. VITA will help you see where you stand and how to approach it.
         </p>
 
-        <input
-          value={company}
-          onChange={(e) => setCompany(e.target.value)}
-          placeholder="Company"
-          className="vita-field" style={inputStyle}
-        />
-        <input
-          value={roleTitle}
-          onChange={(e) => setRoleTitle(e.target.value)}
-          placeholder="Role title"
-          className="vita-field" style={inputStyle}
-        />
+        {urlSavedNotice && (
+          <div className="vita-fade-in" style={{ background: colors.lavenderBg, borderRadius: 8, padding: "8px 12px", marginBottom: space.md }}>
+            <p style={{ ...type.caption, color: colors.indigoDeep, margin: 0 }}>
+              🔗 Link saved. Paste the job description text below so VITA can actually read it.
+            </p>
+          </div>
+        )}
+
         <textarea
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          placeholder="Paste the full job description..."
-          rows={5}
-          className="vita-field" style={{ ...inputStyle, resize: "vertical" }}
+          value={captureText}
+          onChange={(e) => setCaptureText(e.target.value)}
+          placeholder="Paste a job posting URL, or the full job description…"
+          rows={7}
+          className="vita-field"
+          style={{ ...inputStyle, resize: "vertical", marginBottom: space.md, fontSize: 14 }}
         />
 
-        <p style={{ fontFamily: "Inter, sans-serif", fontSize: 12, fontWeight: 500, color: colors.indigo, margin: "12px 0 8px" }}>
-          Which resume?
-        </p>
-        <select
-          value={selectedResumeId}
-          onChange={(e) => setSelectedResumeId(e.target.value)}
-          className="vita-field" style={inputStyle}
-        >
-          <option value="">Select a resume…</option>
-          {resumes.map((r) => (
-            <option key={r.id} value={r.id}>{r.label}</option>
-          ))}
-        </select>
+        <Button onClick={handleCaptureContinue} style={{ opacity: captureText.trim() ? 1 : 0.5 }}>
+          Continue
+        </Button>
+      </Card>
+    );
+  }
 
-        <button
-          onClick={runScan}
-          disabled={!company || !roleTitle || !description || !selectedResumeId || step === "scanning"}
-          style={{
-            marginTop: 14,
-            background: colors.indigo,
-            color: colors.cream,
-            border: "none",
-            borderRadius: 10,
-            padding: "10px 20px",
-            fontFamily: "Inter, sans-serif",
-            fontSize: 13,
-            fontWeight: 500,
-            cursor: "pointer",
-            opacity: (!company || !roleTitle || !description || !selectedResumeId) ? 0.5 : 1,
-          }}
-        >
-          {step === "scanning" ? "Scanning…" : "Scan match"}
-        </button>
+  // ── Step 2: Recognition — confirm the basics without re-asking for the description ──
+  if (step === "recognize") {
+    return (
+      <Card elevation="surface" style={{ padding: "24px 26px" }}>
+        <TextLink tone="muted" onClick={() => setStep("capture")}>← Back</TextLink>
+        <p style={{ ...type.heading, color: colors.indigo, margin: "10px 0 4px" }}>
+          Tell us about this role
+        </p>
+        <p style={{ ...type.caption, color: colors.faint, margin: "0 0 16px" }}>
+          Just the basics — VITA works from the description you already pasted.
+        </p>
+
+        <div style={{ background: "#fff", borderRadius: 10, border: `1px solid ${colors.border}`, padding: "10px 12px", marginBottom: space.lg }}>
+          <p style={{ ...type.label, color: colors.muted, margin: "0 0 4px" }}>What you pasted</p>
+          <p style={{ ...type.caption, color: colors.muted, fontStyle: "italic", margin: 0 }}>
+            {description.slice(0, 160)}{description.length > 160 ? "…" : ""}
+          </p>
+        </div>
+
+        <FormField label="Company">
+          <input className="vita-field" style={inputStyle} value={company} onChange={(e) => setCompany(e.target.value)} placeholder="e.g. Notion" />
+        </FormField>
+        <FormField label="Role title">
+          <input className="vita-field" style={inputStyle} value={roleTitle} onChange={(e) => setRoleTitle(e.target.value)} placeholder="e.g. Senior Product Designer" />
+        </FormField>
+
+        <Button onClick={() => setStep("resume")} style={{ opacity: (!company.trim() || !roleTitle.trim()) ? 0.5 : 1 }}>
+          Continue
+        </Button>
+      </Card>
+    );
+  }
+
+  // ── Step 3: Resume selection — visual cards instead of a <select> ──
+  if (step === "resume") {
+    return (
+      <div>
+        <TextLink tone="muted" onClick={() => setStep("recognize")}>← Back</TextLink>
+        <p style={{ ...type.heading, color: colors.indigo, margin: "10px 0 4px" }}>
+          Which resume should we compare?
+        </p>
+        <p style={{ ...type.caption, color: colors.faint, margin: "0 0 16px" }}>
+          Pick the version that fits this kind of role best.
+        </p>
+
+        {resumes.length === 0 ? (
+          <Card elevation="surface" style={{ padding: "20px 22px", textAlign: "center", marginBottom: space.lg }}>
+            <p style={{ ...type.body, color: colors.muted, margin: "0 0 10px" }}>
+              You don't have a resume yet.
+            </p>
+            <TextLink onClick={onNavigateToResumes}>Go create one in Resumes →</TextLink>
+          </Card>
+        ) : (
+          <div className="vita-grid" style={{ marginBottom: space.lg }}>
+            {resumes.map((r) => {
+              const selected = r.id === selectedResumeId;
+              return (
+                <div
+                  key={r.id}
+                  className="vita-resume-option"
+                  onClick={() => setSelectedResumeId(r.id)}
+                  style={{
+                    background: "#fff",
+                    borderRadius: 12,
+                    padding: "14px 16px",
+                    border: selected ? `2px solid ${colors.indigo}` : `1px solid ${colors.border}`,
+                  }}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <p style={{ ...type.bodyMedium, color: colors.ink, margin: 0 }}>{r.label}</p>
+                    {selected && <span className="vita-check-pop" style={{ color: colors.indigo, fontSize: 14 }}>✓</span>}
+                  </div>
+                  <p style={{ ...type.caption, color: colors.faint, margin: "4px 0 0" }}>
+                    Updated {new Date(r.updated_at).toLocaleDateString()}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        <Button onClick={runScan} disabled={!selectedResumeId} style={{ opacity: selectedResumeId ? 1 : 0.5 }}>
+          Analyze my match
+        </Button>
       </div>
     );
   }
 
-  // ── Error step (e.g. AI credits not available yet) ──
+  // ── Scanning — a calm holding state, not a spinner ──
+  if (step === "scanning") {
+    return (
+      <Card elevation="surface" style={{ padding: "36px 26px", textAlign: "center" }}>
+        <p className="vita-breathe" style={{ ...type.heading, color: colors.indigo, margin: "0 0 6px" }}>
+          Reading between the lines…
+        </p>
+        <p style={{ ...type.caption, color: colors.faint, margin: 0 }}>
+          Comparing your resume against the posting.
+        </p>
+      </Card>
+    );
+  }
+
+  // ── Error step (e.g. AI credits not available) ──
   if (step === "error") {
     return (
-      <div style={{ background: "#fff", borderRadius: 12, padding: "20px 22px" }}>
-        <p style={{ fontFamily: "Fraunces, serif", fontSize: 16, color: colors.terracottaText, margin: "0 0 6px" }}>
+      <Card elevation="surface" style={{ padding: "20px 22px" }}>
+        <p style={{ ...type.subheading, color: colors.terracottaText, margin: "0 0 6px" }}>
           Couldn't complete the scan
         </p>
-        <p style={{ fontFamily: "Inter, sans-serif", fontSize: 12, color: colors.faint, margin: "0 0 16px" }}>
+        <p style={{ ...type.caption, color: colors.faint, margin: "0 0 16px" }}>
           {errorMsg}
         </p>
-        <button
-          onClick={() => setStep("input")}
-          style={{ background: "transparent", border: `0.5px solid ${colors.border}`, borderRadius: 10, padding: "8px 16px", fontFamily: "Inter, sans-serif", fontSize: 12, color: colors.muted, cursor: "pointer" }}
-        >
-          Try again
-        </button>
-      </div>
+        <Button variant="secondary" onClick={() => setStep("capture")}>Try again</Button>
+      </Card>
     );
   }
 
@@ -960,6 +1081,8 @@ function Scanner() {
         scan={scan}
         company={company}
         roleTitle={roleTitle}
+        jobId={jobId}
+        resumeId={selectedResumeId}
         onViewResume={() => {
           setStep("editor");
           loadResume(selectedResumeId);
@@ -985,44 +1108,43 @@ function Scanner() {
     );
   }
 
-  // ── Results step ──
+  // ── Results step — lead with the encouraging read before the number ──
   return (
-    <div style={{ background: colors.cream, borderRadius: 12, padding: "1.25rem" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
+    <div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: space.lg }}>
         <div>
-          <p style={{ fontFamily: "Fraunces, serif", fontSize: 18, color: colors.indigo, margin: "0 0 2px" }}>
-            Nice fit, with room to shine
+          <p style={{ ...type.heading, fontSize: 22, color: colors.indigo, margin: "0 0 2px" }}>
+            Nice fit. There's room to shine.
           </p>
-          <p style={{ fontFamily: "Inter, sans-serif", fontSize: 12, color: colors.faint, margin: 0 }}>
+          <p style={{ ...type.caption, color: colors.faint, margin: 0 }}>
             {company} · {roleTitle}
           </p>
         </div>
-        <div style={{ textAlign: "center", background: colors.lavender, borderRadius: 12, padding: "8px 14px" }}>
-          <p style={{ fontFamily: "Inter, sans-serif", fontSize: 18, fontWeight: 500, color: colors.indigoDeep, margin: 0 }}>
+        <div className="vita-check-pop" style={{ textAlign: "right" }}>
+          <p style={{ fontFamily: "Inter, sans-serif", fontSize: 30, fontWeight: 600, color: colors.indigoDeep, margin: 0, lineHeight: 1 }}>
             {scan.match_score}%
           </p>
-          <p style={{ fontFamily: "Inter, sans-serif", fontSize: 10, color: colors.indigoDeep, margin: 0 }}>match</p>
+          <p style={{ ...type.caption, color: colors.indigoDeep, margin: 0 }}>match</p>
         </div>
       </div>
 
       {scan.strengths && scan.strengths.length > 0 && (
-        <div style={{ background: "#fff", borderRadius: 12, padding: "12px 14px", marginBottom: 10, borderLeft: `3px solid ${colors.indigo}` }}>
-          <p style={{ fontFamily: "Inter, sans-serif", fontSize: 12, fontWeight: 500, color: colors.indigo, margin: "0 0 4px" }}>
-            Already strong
-          </p>
-          {scan.strengths.map((s, i) => (
-            <p key={i} style={{ fontFamily: "Inter, sans-serif", fontSize: 12, color: colors.muted, margin: 0 }}>{s}</p>
-          ))}
+        <div style={{ marginBottom: space.lg }}>
+          <p style={{ ...type.label, color: colors.indigo, margin: "0 0 8px" }}>Already strong</p>
+          <Card style={{ padding: "12px 14px", borderLeft: `3px solid ${colors.indigo}` }}>
+            {scan.strengths.map((s, i) => (
+              <p key={i} style={{ ...type.body, color: colors.muted, margin: i < scan.strengths.length - 1 ? "0 0 6px" : 0 }}>{s}</p>
+            ))}
+          </Card>
         </div>
       )}
 
+      <p style={{ ...type.label, color: colors.terracottaText, margin: "0 0 8px" }}>Worth adding</p>
       {scan.suggestions.map((s, i) => (
-        <div
+        <Card
           key={s.id}
           className="vita-fade-in vita-suggestion-card"
           style={{
-            background: "#fff",
-            borderRadius: 12,
             padding: "12px 14px",
             marginBottom: 10,
             borderLeft: `3px solid ${colors.terracotta}`,
@@ -1030,89 +1152,134 @@ function Scanner() {
             animationDelay: `${i * 60}ms`,
           }}
         >
-          <p style={{ fontFamily: "Inter, sans-serif", fontSize: 12, color: colors.terracottaText, margin: "0 0 8px" }}>
+          <p style={{ ...type.caption, color: colors.terracottaText, fontWeight: 500, margin: "0 0 4px" }}>
+            Why this helps
+          </p>
+          <p style={{ ...type.body, color: colors.muted, margin: "0 0 10px" }}>
             {s.reason}
           </p>
-          <div style={{ background: colors.terracottaBg, borderRadius: 8, padding: "8px 10px" }}>
-            <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: "#4A1B0C", margin: 0 }}>
-              {s.suggested_text}
-            </p>
-          </div>
-          {s.status === "pending" && (
-            <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-              <button
-                onClick={() => handleSuggestion(s.id, "accept")}
-                style={{ background: colors.indigo, color: colors.cream, border: "none", borderRadius: 8, padding: "6px 14px", fontFamily: "Inter, sans-serif", fontSize: 12, cursor: "pointer" }}
-              >
-                Accept
-              </button>
-              <button
-                onClick={() => handleSuggestion(s.id, "skip")}
-                style={{ background: "transparent", border: "none", padding: "6px 14px", fontFamily: "Inter, sans-serif", fontSize: 12, color: colors.faint, cursor: "pointer" }}
-              >
-                Skip
-              </button>
+
+          <p style={{ ...type.caption, color: colors.terracottaText, fontWeight: 500, margin: "0 0 4px" }}>
+            Proposed change
+          </p>
+
+          {editingSuggestionId === s.id ? (
+            <div>
+              <textarea
+                className="vita-field"
+                value={suggestionDraft}
+                onChange={(e) => setSuggestionDraft(e.target.value)}
+                rows={3}
+                style={{ ...inputStyle, marginBottom: space.sm }}
+              />
+              <div style={{ display: "flex", gap: 8 }}>
+                <Button size="sm" onClick={() => handleSuggestion(s.id, "accept", suggestionDraft)}>Save &amp; accept</Button>
+                <Button size="sm" variant="secondary" onClick={() => setEditingSuggestionId(null)}>Cancel</Button>
+              </div>
             </div>
+          ) : (
+            <>
+              <div style={{ background: colors.terracottaBg, borderRadius: 8, padding: "8px 10px", marginBottom: s.status === "pending" ? 10 : 0 }}>
+                <p style={{ ...type.body, color: "#4A1B0C", margin: 0 }}>
+                  {s.suggested_text}
+                </p>
+              </div>
+              {s.status === "pending" && (
+                <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
+                  <Button size="sm" onClick={() => handleSuggestion(s.id, "accept")}>Accept</Button>
+                  <Button size="sm" variant="secondary" onClick={() => startEditSuggestion(s)}>Edit</Button>
+                  <Button variant="ghost" onClick={() => handleSuggestion(s.id, "skip")}>Skip</Button>
+                </div>
+              )}
+              {s.status !== "pending" && (
+                <div className="vita-check-pop" style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 10 }}>
+                  <span style={{ width: 16, height: 16, borderRadius: "50%", background: s.status === "accepted" ? colors.indigo : colors.faint, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                    <span style={{ color: "#fff", fontSize: 10 }}>{s.status === "accepted" ? "✓" : "–"}</span>
+                  </span>
+                  <p style={{ ...type.caption, color: colors.faint, margin: 0 }}>{s.status === "accepted" ? "Accepted" : "Skipped"}</p>
+                </div>
+              )}
+            </>
           )}
-          {s.status !== "pending" && (
-            <p style={{ fontFamily: "Inter, sans-serif", fontSize: 11, color: colors.faint, margin: "8px 0 0" }}>
-              {s.status === "accepted" ? "Accepted" : "Skipped"}
-            </p>
-          )}
-        </div>
+        </Card>
       ))}
 
-      <button className="vita-btn"
-        onClick={() => setStep("confirmation")}
-        style={{ marginTop: 4, background: colors.indigo, color: colors.cream, border: "none", borderRadius: 10, padding: "10px 20px", fontFamily: "Inter, sans-serif", fontSize: 13, fontWeight: 500, cursor: "pointer" }}
-      >
+      <Button onClick={() => setStep("confirmation")} style={{ marginTop: space.xs }}>
         Continue
-      </button>
+      </Button>
     </div>
   );
 }
 
-function ScannerConfirmation({ scan, company, roleTitle, onViewResume }) {
+function ScannerConfirmation({ scan, company, roleTitle, jobId, resumeId, onViewResume }) {
   const accepted = scan.suggestions.filter((s) => s.status === "accepted");
+  const [adding, setAdding] = useState(false);
+  const [added, setAdded] = useState(false);
+  const [addError, setAddError] = useState("");
+
+  const addToTracker = async () => {
+    setAdding(true);
+    setAddError("");
+    try {
+      await apiFetch("/applications", {
+        method: "POST",
+        body: JSON.stringify({ job_posting_id: jobId, resume_id: resumeId, status: "applied" }),
+      });
+      setAdded(true);
+    } catch (err) {
+      setAddError(err.message);
+    } finally {
+      setAdding(false);
+    }
+  };
 
   return (
-    <div style={{ background: "#fff", borderRadius: 12, padding: "20px 22px" }}>
+    <Card elevation="surface" style={{ padding: "20px 22px" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
-        <div style={{ width: 32, height: 32, borderRadius: "50%", background: colors.indigo, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div className="vita-check-pop" style={{ width: 32, height: 32, borderRadius: "50%", background: colors.indigo, display: "flex", alignItems: "center", justifyContent: "center" }}>
           <span style={{ color: colors.cream, fontSize: 14 }}>✓</span>
         </div>
-        <p style={{ fontFamily: "Fraunces, serif", fontSize: 18, color: colors.indigo, margin: 0 }}>
+        <p style={{ ...type.heading, color: colors.indigo, margin: 0 }}>
           Your resume is updated
         </p>
       </div>
-      <p style={{ fontFamily: "Inter, sans-serif", fontSize: 12, color: colors.faint, margin: "0 0 16px 42px" }}>
+      <p style={{ ...type.caption, color: colors.faint, margin: "0 0 16px 42px" }}>
         {accepted.length} edit{accepted.length === 1 ? "" : "s"} applied for {company} · {roleTitle}.
       </p>
 
       {accepted.length > 0 && (
-        <div style={{ background: colors.terracottaBg, borderRadius: 12, padding: "14px 16px", marginBottom: 16 }}>
-          <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, fontWeight: 500, color: colors.terracottaText, margin: "0 0 10px" }}>
+        <div style={{ background: colors.terracottaBg, borderRadius: 12, padding: "14px 16px", marginBottom: space.lg }}>
+          <p style={{ ...type.bodyMedium, color: colors.terracottaText, margin: "0 0 10px" }}>
             What changed
           </p>
           {accepted.map((s) => (
-            <p key={s.id} style={{ fontFamily: "Inter, sans-serif", fontSize: 12, color: "#4A1B0C", margin: "0 0 6px" }}>
+            <p key={s.id} style={{ ...type.body, fontSize: 12, color: "#4A1B0C", margin: "0 0 6px" }}>
               • {s.reason}
             </p>
           ))}
         </div>
       )}
 
-      <p style={{ fontFamily: "Inter, sans-serif", fontSize: 11, color: colors.faint, margin: "0 0 16px" }}>
+      <p style={{ ...type.caption, color: colors.faint, margin: "0 0 16px" }}>
         Want an updated match score? Run a new scan any time — it'll reflect these changes.
       </p>
 
-      <button className="vita-btn"
-        onClick={onViewResume}
-        style={{ background: colors.indigo, color: colors.cream, border: "none", borderRadius: 10, padding: "10px 20px", fontFamily: "Inter, sans-serif", fontSize: 13, fontWeight: 500, cursor: "pointer" }}
-      >
-        View full resume
-      </button>
-    </div>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+        <Button onClick={onViewResume}>View full resume</Button>
+        {jobId && resumeId && (
+          added ? (
+            <span style={{ ...type.caption, color: colors.indigo }}>✓ Added to your tracker</span>
+          ) : (
+            <Button variant="secondary" onClick={addToTracker} disabled={adding}>
+              {adding ? "Adding…" : "Add to tracker"}
+            </Button>
+          )
+        )}
+      </div>
+      {addError && (
+        <p style={{ ...type.caption, color: colors.terracottaText, margin: "8px 0 0" }}>{addError}</p>
+      )}
+    </Card>
   );
 }
 
@@ -1124,7 +1291,7 @@ function ResumeEditor({ resumeDetail, status, editingBulletId, draftText, openRe
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-        <p style={{ fontFamily: "Fraunces, serif", fontSize: 18, color: colors.indigo, margin: 0 }}>
+        <p style={{ ...type.heading, color: colors.indigo, margin: 0 }}>
           {resumeDetail.label} resume
         </p>
         <span style={{ background: colors.lavenderBg, color: colors.indigoDeep, fontSize: 11, padding: "4px 10px", borderRadius: 20, fontFamily: "Inter, sans-serif" }}>
@@ -1132,10 +1299,10 @@ function ResumeEditor({ resumeDetail, status, editingBulletId, draftText, openRe
         </span>
       </div>
 
-      <div style={{ background: "#fff", borderRadius: 12, padding: "20px 22px" }}>
+      <Card elevation="surface" style={{ padding: "20px 22px" }}>
         {resumeDetail.sections.map((section) => (
           <div key={section.id} style={{ marginBottom: 18 }}>
-            <p style={{ fontFamily: "Inter, sans-serif", fontSize: 11, fontWeight: 500, color: colors.indigo, letterSpacing: "0.02em", margin: "0 0 8px" }}>
+            <p style={{ ...type.label, color: colors.indigo, margin: "0 0 8px" }}>
               {section.type.toUpperCase()}
             </p>
             {section.bullets.map((bullet) => {
@@ -1149,14 +1316,12 @@ function ResumeEditor({ resumeDetail, status, editingBulletId, draftText, openRe
                         value={draftText}
                         onChange={(e) => onDraftChange(e.target.value)}
                         rows={2}
-                        style={{ width: "100%", fontFamily: "Inter, sans-serif", fontSize: 13, padding: 8, borderRadius: 6, border: `0.5px solid ${colors.border}`, boxSizing: "border-box" }}
+                        className="vita-field"
+                        style={{ width: "100%", fontFamily: "Inter, sans-serif", fontSize: 13, padding: 8, borderRadius: 6, border: `1px solid ${colors.border}`, boxSizing: "border-box" }}
                       />
-                      <button
-                        onClick={() => onSave(bullet.id)}
-                        style={{ marginTop: 4, background: colors.indigo, color: colors.cream, border: "none", borderRadius: 6, padding: "4px 12px", fontFamily: "Inter, sans-serif", fontSize: 11, cursor: "pointer" }}
-                      >
+                      <Button size="sm" onClick={() => onSave(bullet.id)} style={{ marginTop: 4 }}>
                         Save
-                      </button>
+                      </Button>
                     </div>
                   ) : (
                     <div
@@ -1176,6 +1341,7 @@ function ResumeEditor({ resumeDetail, status, editingBulletId, draftText, openRe
                       {bullet.content}
                       {wasEdited && (
                         <span
+                          className="vita-text-link"
                           onClick={(e) => { e.stopPropagation(); onToggleReason(bullet.id); }}
                           style={{ marginLeft: 8, fontSize: 11, color: colors.terracottaText, cursor: "pointer" }}
                         >
@@ -1185,7 +1351,7 @@ function ResumeEditor({ resumeDetail, status, editingBulletId, draftText, openRe
                     </div>
                   )}
                   {wasEdited && openReasonId === bullet.id && (
-                    <p style={{ fontFamily: "Inter, sans-serif", fontSize: 11, color: colors.faint, margin: "4px 0 0", fontStyle: "italic" }}>
+                    <p style={{ ...type.caption, color: colors.faint, margin: "4px 0 0", fontStyle: "italic" }}>
                       {bullet.reason}
                     </p>
                   )}
@@ -1194,14 +1360,15 @@ function ResumeEditor({ resumeDetail, status, editingBulletId, draftText, openRe
             })}
           </div>
         ))}
-      </div>
+      </Card>
 
-      <p style={{ fontFamily: "Inter, sans-serif", fontSize: 11, color: colors.faint, margin: "12px 0 0" }}>
+      <p style={{ ...type.caption, color: colors.faint, margin: "12px 0 0" }}>
         Tap any line to edit. Tinted lines were updated during a scan — tap the ⓘ to see why.
       </p>
     </div>
   );
 }
+
 
 const inputStyle = {
   width: "100%",
@@ -2355,7 +2522,7 @@ export default function VitaApp() {
         <div key={tab} className="vita-fade-in">
           {tab === "dashboard" && <Dashboard />}
           {tab === "resumes" && <Resumes />}
-          {tab === "scanner" && <Scanner />}
+          {tab === "scanner" && <Scanner onNavigateToResumes={() => setTab("resumes")} />}
           {tab === "tracker" && <Tracker />}
           {tab === "chat" && <InterviewChat />}
           {tab === "portfolio" && <Portfolio />}
