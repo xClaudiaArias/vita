@@ -3,7 +3,11 @@ import pool from "../db.js";
 
 const router = express.Router();
 
-
+// ─────────────────────────────────────────
+// Small helper: fetch a resume with sections + bullets nested.
+// Same logic as GET /resumes/:id — pulled out here so the scan
+// route can reuse it without duplicating the query.
+// ─────────────────────────────────────────
 async function getResumeWithSections(resumeId) {
   const rowsResult = await pool.query(
     `SELECT s.id AS section_id, s.type AS section_type,
@@ -30,6 +34,12 @@ async function getResumeWithSections(resumeId) {
   return sectionsMap;
 }
 
+// ─────────────────────────────────────────
+// POST /scans
+// Body: { "resume_id": "uuid", "job_posting_id": "uuid" }
+// Compares the resume to the job posting via the Anthropic API,
+// stores the scan + suggestions, and returns them.
+// ─────────────────────────────────────────
 router.post("/", async (req, res) => {
   const { resume_id, job_posting_id } = req.body;
 
@@ -171,10 +181,18 @@ Keep suggestions to 2-4 of the highest-impact changes. Be encouraging and specif
   }
 });
 
-
+// ─────────────────────────────────────────
+// PATCH /scans/suggestions/:suggestionId
+// Body: { "action": "accept" | "skip", "edited_text"?: string }
+// On accept: applies suggestion.suggested_text by default, or the
+// caller's edited_text if provided (e.g. the person tweaked the wording
+// before accepting it). If it targets an existing bullet, updates its
+// content and records why it changed. If it's a brand new bullet
+// (bullet_id was null), inserts a new bullet into the right section.
+// ─────────────────────────────────────────
 router.patch("/suggestions/:suggestionId", async (req, res) => {
   const { suggestionId } = req.params;
-  const { action } = req.body;
+  const { action, edited_text } = req.body;
 
   if (!["accept", "skip"].includes(action)) {
     return res.status(400).json({ error: "action must be 'accept' or 'skip'" });
@@ -206,14 +224,19 @@ router.patch("/suggestions/:suggestionId", async (req, res) => {
       return res.json({ id: suggestionId, status: "skipped" });
     }
 
-    // action === "accept"
+    // action === "accept" — use the person's edited wording if they
+    // provided one, otherwise fall back to exactly what was suggested.
+    const appliedText = (typeof edited_text === "string" && edited_text.trim())
+      ? edited_text.trim()
+      : suggestion.suggested_text;
+
     if (suggestion.bullet_id) {
       // Editing an existing bullet
       await client.query(
         `UPDATE resume_bullets
          SET content = $1, last_edited_reason = $2, last_edited_at = now()
          WHERE id = $3`,
-        [suggestion.suggested_text, suggestion.reason, suggestion.bullet_id]
+        [appliedText, suggestion.reason, suggestion.bullet_id]
       );
     } else {
       // Brand new bullet — find the resume via the scan, then the right section
@@ -243,7 +266,7 @@ router.patch("/suggestions/:suggestionId", async (req, res) => {
       await client.query(
         `INSERT INTO resume_bullets (section_id, content, last_edited_reason, last_edited_at)
          VALUES ($1, $2, $3, now())`,
-        [sectionId, suggestion.suggested_text, suggestion.reason]
+        [sectionId, appliedText, suggestion.reason]
       );
     }
 
@@ -253,7 +276,7 @@ router.patch("/suggestions/:suggestionId", async (req, res) => {
     );
 
     await client.query("COMMIT");
-    res.json({ id: suggestionId, status: "accepted" });
+    res.json({ id: suggestionId, status: "accepted", suggested_text: appliedText });
   } catch (err) {
     await client.query("ROLLBACK");
     console.error(err);
