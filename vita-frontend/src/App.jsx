@@ -1973,6 +1973,12 @@ function Resumes() {
   const [editingId, setEditingId] = useState(null);
   const [draftLabel, setDraftLabel] = useState("");
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
+  const [viewingId, setViewingId] = useState(null);
+  const [resumeDetail, setResumeDetail] = useState(null);
+  const [resumeDetailStatus, setResumeDetailStatus] = useState("idle");
+  const [editingBulletId, setEditingBulletId] = useState(null);
+  const [draftBulletText, setDraftBulletText] = useState("");
+  const [openReasonId, setOpenReasonId] = useState(null);
 
   const load = useCallback(async () => {
     setStatus("loading");
@@ -2022,12 +2028,54 @@ function Resumes() {
     }
   };
 
+  const openResume = async (id) => {
+    setViewingId(id);
+    setResumeDetailStatus("loading");
+    try {
+      const data = await apiFetch(`/resumes/${id}`);
+      setResumeDetail(data);
+      setResumeDetailStatus("ready");
+    } catch (err) {
+      setResumeDetailStatus("error");
+    }
+  };
+
+  const saveBulletEdit = async (bulletId) => {
+    await apiFetch(`/resumes/bullets/${bulletId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ content: draftBulletText }),
+    });
+    setEditingBulletId(null);
+    openResume(viewingId);
+  };
+
   if (showForm) {
     return (
       <CreateResumeForm
         onCreated={() => { setShowForm(false); load(); }}
         onCancel={() => setShowForm(false)}
       />
+    );
+  }
+
+  if (viewingId) {
+    return (
+      <div>
+        <TextLink tone="muted" onClick={() => { setViewingId(null); setResumeDetail(null); }}>← Back to resumes</TextLink>
+        <div style={{ marginTop: 10 }}>
+          <ResumeEditor
+            resumeDetail={resumeDetail}
+            status={resumeDetailStatus}
+            editingBulletId={editingBulletId}
+            draftText={draftBulletText}
+            openReasonId={openReasonId}
+            onStartEdit={(bullet) => { setEditingBulletId(bullet.id); setDraftBulletText(bullet.content); }}
+            onDraftChange={setDraftBulletText}
+            onSave={saveBulletEdit}
+            onToggleReason={(id) => setOpenReasonId((prev) => (prev === id ? null : id))}
+          />
+        </div>
+      </div>
     );
   }
 
@@ -2054,9 +2102,14 @@ function Resumes() {
       ) : (
         <div className="vita-grid">
           {resumes.map((r) => (
-            <div key={r.id} className="vita-card" style={{ background: "#fff", borderRadius: 12, padding: "14px 16px" }}>
+            <div
+              key={r.id}
+              className="vita-card"
+              onClick={() => editingId !== r.id && openResume(r.id)}
+              style={{ background: "#fff", borderRadius: 12, padding: "14px 16px", cursor: editingId === r.id ? "default" : "pointer" }}
+            >
               {editingId === r.id ? (
-                <div style={{ marginBottom: 4 }}>
+                <div style={{ marginBottom: 4 }} onClick={(e) => e.stopPropagation()}>
                   <input
                     value={draftLabel}
                     onChange={(e) => setDraftLabel(e.target.value)}
@@ -2081,13 +2134,13 @@ function Resumes() {
 
               {editingId !== r.id && (
                 confirmDeleteId === r.id ? (
-                  <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  <div style={{ display: "flex", gap: 8, alignItems: "center" }} onClick={(e) => e.stopPropagation()}>
                     <span style={{ fontFamily: "Inter, sans-serif", fontSize: 11, color: colors.terracottaText }}>Delete this resume?</span>
                     <span className="vita-text-link" onClick={() => confirmDelete(r.id)} style={{ fontFamily: "Inter, sans-serif", fontSize: 11, color: colors.terracottaText, fontWeight: 500, cursor: "pointer" }}>Yes</span>
                     <span className="vita-text-link" onClick={() => setConfirmDeleteId(null)} style={{ fontFamily: "Inter, sans-serif", fontSize: 11, color: colors.faint, cursor: "pointer" }}>Cancel</span>
                   </div>
                 ) : (
-                  <div style={{ display: "flex", gap: 10 }}>
+                  <div style={{ display: "flex", gap: 10 }} onClick={(e) => e.stopPropagation()}>
                     <span className="vita-text-link" onClick={() => startRename(r)} style={{ fontFamily: "Inter, sans-serif", fontSize: 11, color: colors.indigo, cursor: "pointer" }}>Rename</span>
                     <span className="vita-text-link" onClick={() => setConfirmDeleteId(r.id)} style={{ fontFamily: "Inter, sans-serif", fontSize: 11, color: colors.faint, cursor: "pointer" }}>Delete</span>
                   </div>
@@ -2098,6 +2151,7 @@ function Resumes() {
         </div>
       )}
     </div>
+
   );
 }
 
