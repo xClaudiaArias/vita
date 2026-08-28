@@ -11,9 +11,10 @@
 - [x] Settings — name, weekly goal, avatar
 - [x] Motion pass — hover states, fades, progress animation
 
-<!-- TODO:  -->
+<!-- FIX:  🐞 -->
 - [ ] Scanner is bugged
 - [ ] Resume needs to be parsed
+- [ ] Scanner should be able to extract job title and Role
 
 ---
 
