@@ -11,6 +11,10 @@
 - [x] Settings — name, weekly goal, avatar
 - [x] Motion pass — hover states, fades, progress animation
 
+<!-- TODO:  -->
+- [ ] Scanner is bugged
+- [ ] Resume needs to be parsed
+
 ---
 
 ## What is next?
