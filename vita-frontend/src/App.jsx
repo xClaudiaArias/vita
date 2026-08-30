@@ -177,10 +177,13 @@ const API_BASE = "http://localhost:4000";
 // Throws on any non-2xx response so callers can catch() a single error path.
 async function apiFetch(path, options = {}) {
   const token = localStorage.getItem("vita_token");
+  const isFormData = options.body instanceof FormData;
   const res = await fetch(`${API_BASE}${path}`, {
     ...options,
     headers: {
-      "Content-Type": "application/json",
+      // FormData sets its own Content-Type (with the multipart boundary) —
+      // setting it manually here would break file uploads.
+      ...(isFormData ? {} : { "Content-Type": "application/json" }),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(options.headers || {}),
     },
@@ -1793,6 +1796,143 @@ function AuthScreen({ onAuthenticated, initialMode = "login", onBack }) {
 // ── Resumes view (list + create) ──────────────────
 const SECTION_TYPES = ["summary", "experience", "skills", "education"];
 
+// Paste raw resume text or upload a PDF/DOCX/TXT file — VITA reads it
+// and structures it into sections/bullets automatically, rather than
+// making the person rebuild their resume by hand line by line.
+function ParseResumeForm({ onCreated, onCancel }) {
+  const [label, setLabel] = useState("");
+  const [mode, setMode] = useState("paste"); // paste | upload
+  const [pastedText, setPastedText] = useState("");
+  const [file, setFile] = useState(null);
+  const [status, setStatus] = useState("idle"); // idle | parsing | error
+  const [errorMsg, setErrorMsg] = useState("");
+
+  const submit = async () => {
+    setErrorMsg("");
+    if (!label.trim()) {
+      setErrorMsg("Give this resume a name first.");
+      return;
+    }
+    if (mode === "paste" && !pastedText.trim()) {
+      setErrorMsg("Paste your resume text first.");
+      return;
+    }
+    if (mode === "upload" && !file) {
+      setErrorMsg("Choose a file first.");
+      return;
+    }
+
+    setStatus("parsing");
+    try {
+      let body;
+      if (mode === "upload") {
+        const formData = new FormData();
+        formData.append("label", label.trim());
+        formData.append("file", file);
+        body = formData;
+      } else {
+        body = JSON.stringify({ label: label.trim(), text: pastedText.trim() });
+      }
+      await apiFetch("/resumes/parse", { method: "POST", body });
+      onCreated();
+    } catch (err) {
+      setErrorMsg(err.message);
+      setStatus("idle");
+    }
+  };
+
+  if (status === "parsing") {
+    return (
+      <Card elevation="surface" style={{ padding: "36px 26px", textAlign: "center" }}>
+        <p className="vita-breathe" style={{ ...type.heading, color: colors.indigo, margin: "0 0 6px" }}>
+          Reading your resume…
+        </p>
+        <p style={{ ...type.caption, color: colors.faint, margin: 0 }}>
+          Sorting it into sections VITA can work with.
+        </p>
+      </Card>
+    );
+  }
+
+  return (
+    <Card elevation="surface" style={{ padding: "20px 22px" }}>
+      <p style={{ ...type.heading, color: colors.indigo, margin: "0 0 4px" }}>
+        Add from an existing resume
+      </p>
+      <p style={{ ...type.caption, color: colors.faint, margin: "0 0 16px" }}>
+        Paste the text or upload a file — VITA will sort it into sections for you.
+      </p>
+
+      <FormField label="Resume name">
+        <input
+          className="vita-field"
+          style={inputStyle}
+          value={label}
+          onChange={(e) => setLabel(e.target.value)}
+          placeholder="e.g. Product Design"
+        />
+      </FormField>
+
+      <div style={{ display: "flex", gap: space.sm, marginBottom: space.md }}>
+        {[{ key: "paste", label: "Paste text" }, { key: "upload", label: "Upload file" }].map((m) => (
+          <button
+            key={m.key}
+            className="vita-tab-btn"
+            onClick={() => setMode(m.key)}
+            style={{
+              background: mode === m.key ? colors.indigo : "#fff",
+              color: mode === m.key ? colors.cream : colors.muted,
+              border: mode === m.key ? "none" : `1px solid ${colors.border}`,
+              borderRadius: 20,
+              padding: "6px 14px",
+              fontFamily: "Inter, sans-serif",
+              fontSize: 12,
+              fontWeight: 500,
+              cursor: "pointer",
+            }}
+          >
+            {m.label}
+          </button>
+        ))}
+      </div>
+
+      {mode === "paste" ? (
+        <textarea
+          className="vita-field"
+          value={pastedText}
+          onChange={(e) => setPastedText(e.target.value)}
+          placeholder="Paste your resume text here…"
+          rows={9}
+          style={{ ...inputStyle, resize: "vertical" }}
+        />
+      ) : (
+        <div style={{ marginBottom: space.md }}>
+          <input
+            type="file"
+            accept=".pdf,.docx,.txt"
+            onChange={(e) => setFile(e.target.files?.[0] || null)}
+            style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: colors.muted }}
+          />
+          <p style={{ ...type.caption, color: colors.faint, margin: "6px 0 0" }}>
+            PDF, DOCX, or TXT — up to 5MB.
+          </p>
+        </div>
+      )}
+
+      {errorMsg && (
+        <p style={{ ...type.caption, color: colors.terracottaText, margin: "0 0 10px" }}>
+          {errorMsg}
+        </p>
+      )}
+
+      <div style={{ display: "flex", gap: 8 }}>
+        <Button onClick={submit}>Parse &amp; create</Button>
+        <Button variant="secondary" onClick={onCancel}>Cancel</Button>
+      </div>
+    </Card>
+  );
+}
+
 function CreateResumeForm({ onCreated, onCancel }) {
   const [label, setLabel] = useState("");
   const [sections, setSections] = useState([
@@ -1969,7 +2109,7 @@ function Resumes() {
   const [resumes, setResumes] = useState([]);
   const [status, setStatus] = useState("idle");
   const [errorMsg, setErrorMsg] = useState("");
-  const [showForm, setShowForm] = useState(false);
+  const [formMode, setFormMode] = useState(null); // null | "choose" | "manual" | "parse"
   const [editingId, setEditingId] = useState(null);
   const [draftLabel, setDraftLabel] = useState("");
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
@@ -2049,11 +2189,56 @@ function Resumes() {
     openResume(viewingId);
   };
 
-  if (showForm) {
+  if (formMode === "choose") {
+    return (
+      <Card elevation="surface" style={{ padding: "20px 22px" }}>
+        <p style={{ ...type.heading, color: colors.indigo, margin: "0 0 4px" }}>
+          New resume
+        </p>
+        <p style={{ ...type.caption, color: colors.faint, margin: "0 0 18px" }}>
+          Start from an existing resume, or build one from scratch.
+        </p>
+        <div style={{ display: "flex", gap: space.md, flexWrap: "wrap", marginBottom: space.md }}>
+          <div
+            className="vita-card vita-resume-option"
+            onClick={() => setFormMode("parse")}
+            style={{ background: "#fff", borderRadius: 12, padding: "16px 18px", flex: 1, minWidth: 200 }}
+          >
+            <p style={{ ...type.bodyMedium, color: colors.ink, margin: "0 0 4px" }}>Paste or upload</p>
+            <p style={{ ...type.caption, color: colors.faint, margin: 0 }}>
+              Have a resume already? VITA will read it and sort it into sections.
+            </p>
+          </div>
+          <div
+            className="vita-card vita-resume-option"
+            onClick={() => setFormMode("manual")}
+            style={{ background: "#fff", borderRadius: 12, padding: "16px 18px", flex: 1, minWidth: 200 }}
+          >
+            <p style={{ ...type.bodyMedium, color: colors.ink, margin: "0 0 4px" }}>Build from scratch</p>
+            <p style={{ ...type.caption, color: colors.faint, margin: 0 }}>
+              Add sections and lines yourself, one at a time.
+            </p>
+          </div>
+        </div>
+        <Button variant="secondary" onClick={() => setFormMode(null)}>Cancel</Button>
+      </Card>
+    );
+  }
+
+  if (formMode === "parse") {
+    return (
+      <ParseResumeForm
+        onCreated={() => { setFormMode(null); load(); }}
+        onCancel={() => setFormMode(null)}
+      />
+    );
+  }
+
+  if (formMode === "manual") {
     return (
       <CreateResumeForm
-        onCreated={() => { setShowForm(false); load(); }}
-        onCancel={() => setShowForm(false)}
+        onCreated={() => { setFormMode(null); load(); }}
+        onCancel={() => setFormMode(null)}
       />
     );
   }
@@ -2081,17 +2266,7 @@ function Resumes() {
 
   return (
     <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-        <p style={{ fontFamily: "Fraunces, serif", fontSize: 18, color: colors.indigo, margin: 0 }}>
-          Your resumes
-        </p>
-        <button className="vita-btn"
-          onClick={() => setShowForm(true)}
-          style={{ background: colors.indigo, color: colors.cream, border: "none", borderRadius: 10, padding: "8px 16px", fontFamily: "Inter, sans-serif", fontSize: 12, fontWeight: 500, cursor: "pointer" }}
-        >
-          + New resume
-        </button>
-      </div>
+      <SectionHeader title="Your resumes" actionLabel="+ New resume" onAction={() => setFormMode("choose")} />
 
       {status === "loading" || status === "idle" ? (
         <EmptyState title="Loading…" subtitle="Just a moment." />
