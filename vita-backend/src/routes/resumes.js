@@ -1,35 +1,18 @@
 import express from "express";
+import multer from "multer";
+import pdfParse from "pdf-parse";
+import mammoth from "mammoth";
 import pool from "../db.js";
 
 const router = express.Router();
 
-// ─────────────────────────────────────────
-// POST /resumes
-// Creates a resume with its sections and bullets in one request.
-// Expects a body like:
-// {
-//   "user_id": "uuid",
-//   "label": "Product Design",
-//   "sections": [
-//     { "type": "summary", "bullets": ["Product designer with 6 years..."] },
-//     { "type": "experience", "bullets": ["Led design for...", "Partnered with..."] }
-//   ]
-// }
-// ─────────────────────────────────────────
-router.post("/", async (req, res) => {
-  const { label, sections } = req.body;
-  const userId = req.userId; // from the verified token, not the request body
+// Files are handled in memory (never written to disk) and capped at 5MB —
+// plenty for a resume, small enough to not be a DoS vector.
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
 
-  if (!label) {
-    return res.status(400).json({ error: "label is required" });
-  }
 
-  // We use a "client" (not the shared pool) here because we need several
-  // queries to succeed or fail together as one transaction — if inserting
-  // a bullet fails halfway through, we don't want a half-created resume
-  // left behind in the database.
+async function createResumeWithSections(userId, label, sections) {
   const client = await pool.connect();
-
   try {
     await client.query("BEGIN");
 
@@ -57,21 +40,130 @@ router.post("/", async (req, res) => {
     }
 
     await client.query("COMMIT");
-    res.status(201).json({ id: resumeId });
+    return resumeId;
   } catch (err) {
     await client.query("ROLLBACK");
-    console.error(err);
-    res.status(500).json({ error: err.message });
+    throw err;
   } finally {
     client.release();
   }
+}
+
+router.post("/", async (req, res) => {
+  const { label, sections } = req.body;
+
+  if (!label) {
+    return res.status(400).json({ error: "label is required" });
+  }
+
+  try {
+    const resumeId = await createResumeWithSections(req.userId, label, sections);
+    res.status(201).json({ id: resumeId });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
 });
 
-// ─────────────────────────────────────────
-// GET /resumes
-// Lists all resumes for the logged-in user — just the label and
-// freshness, not the full nested content (that's what GET /:id is for).
-// ─────────────────────────────────────────
+router.post("/parse", upload.single("file"), async (req, res) => {
+  const label = req.body.label;
+
+  if (!label || !label.trim()) {
+    return res.status(400).json({ error: "label is required" });
+  }
+
+  try {
+    let rawText = "";
+
+    if (req.file) {
+      const mimetype = req.file.mimetype;
+      if (mimetype === "application/pdf") {
+        const parsed = await pdfParse(req.file.buffer);
+        rawText = parsed.text;
+      } else if (mimetype === "application/vnd.openxmlformats-officedocument.wordprocessingml.document") {
+        const parsed = await mammoth.extractRawText({ buffer: req.file.buffer });
+        rawText = parsed.value;
+      } else if (mimetype === "text/plain") {
+        rawText = req.file.buffer.toString("utf-8");
+      } else {
+        return res.status(400).json({ error: "Unsupported file type — please upload a PDF, DOCX, or TXT file." });
+      }
+    } else if (req.body.text) {
+      rawText = req.body.text;
+    } else {
+      return res.status(400).json({ error: "Provide either a file upload or pasted text." });
+    }
+
+    rawText = rawText.trim();
+    if (!rawText) {
+      return res.status(400).json({ error: "Couldn't find any readable text in that file." });
+    }
+
+    // Ask Claude to turn free-form resume text into our exact
+    // sections/bullets shape — same "respond with ONLY JSON" pattern
+    // used by the scan route, so we can parse the response directly.
+    const prompt = `You are extracting structured content from a resume so it can be stored in a database.
+
+RESUME TEXT:
+${rawText.slice(0, 12000)}
+
+Respond with ONLY valid JSON (no markdown fences, no preamble) in this exact shape:
+{
+  "sections": [
+    { "type": "summary", "bullets": ["<a short professional summary, one bullet is fine>"] },
+    { "type": "experience", "bullets": ["<one bullet per accomplishment/responsibility, across all jobs, most recent first>"] },
+    { "type": "skills", "bullets": ["<individual skills or short skill groupings>"] },
+    { "type": "education", "bullets": ["<degree, school, and year if present>"] }
+  ]
+}
+
+Rules:
+- Use ONLY these four section types: summary, experience, skills, education.
+- Omit a section entirely if the resume has nothing for it — don't invent content.
+- Keep each bullet as close to the original wording as possible; you're extracting and organizing, not rewriting.
+- Split multi-sentence experience entries into separate bullets rather than one long paragraph.`;
+
+    const aiResponse = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": process.env.ANTHROPIC_API_KEY,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-6",
+        max_tokens: 2000,
+        messages: [{ role: "user", content: prompt }],
+      }),
+    });
+
+    if (!aiResponse.ok) {
+      const errText = await aiResponse.text();
+      throw new Error(`Anthropic API error: ${errText}`);
+    }
+
+    const aiData = await aiResponse.json();
+    const responseText = aiData.content
+      .map((block) => (block.type === "text" ? block.text : ""))
+      .join("")
+      .trim();
+
+    let parsed;
+    try {
+      parsed = JSON.parse(responseText);
+    } catch {
+      throw new Error("Could not parse the AI's response as JSON: " + responseText.slice(0, 200));
+    }
+
+    const resumeId = await createResumeWithSections(req.userId, label.trim(), parsed.sections);
+    res.status(201).json({ id: resumeId, sections: parsed.sections });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
 router.get("/", async (req, res) => {
   try {
     const result = await pool.query(
@@ -85,11 +177,7 @@ router.get("/", async (req, res) => {
   }
 });
 
-// ─────────────────────────────────────────
-// PATCH /resumes/bullets/:bulletId
-// Directly edits a bullet's content — used when the person manually
-// edits a line in the resume editor (not via an AI suggestion).
-// ─────────────────────────────────────────
+
 router.patch("/bullets/:bulletId", async (req, res) => {
   const { bulletId } = req.params;
   const { content } = req.body;
@@ -120,11 +208,7 @@ router.patch("/bullets/:bulletId", async (req, res) => {
   }
 });
 
-// ─────────────────────────────────────────
-// GET /resumes/:id
-// Fetches a resume with its sections and bullets nested,
-// matching the shape the frontend editor needs.
-// ─────────────────────────────────────────
+
 router.get("/:id", async (req, res) => {
   const { id } = req.params;
 
@@ -181,11 +265,7 @@ router.get("/:id", async (req, res) => {
   }
 });
 
-// ─────────────────────────────────────────
-// PATCH /resumes/:id
-// Currently just renaming the resume's label. Scoped to the
-// logged-in user so you can't rename someone else's resume.
-// ─────────────────────────────────────────
+
 router.patch("/:id", async (req, res) => {
   const { id } = req.params;
   const { label } = req.body;
@@ -212,14 +292,7 @@ router.patch("/:id", async (req, res) => {
   }
 });
 
-// ─────────────────────────────────────────
-// DELETE /resumes/:id
-// Deleting a resume also deletes its sections and bullets (cascading,
-// set up in the schema), and any application referencing it will keep
-// existing but with resume_id set to NULL rather than being deleted too —
-// you shouldn't lose your whole application history just because you
-// deleted an old resume version.
-// ─────────────────────────────────────────
+
 router.delete("/:id", async (req, res) => {
   const { id } = req.params;
 

@@ -12,7 +12,7 @@
 - [x] Motion pass — hover states, fades, progress animation
 
 <!-- FIX:  🐞 -->
-- [ ] Scanner is bugged
+- [x] Scanner is bugged
 - [ ] Resume needs to be parsed
 - [ ] Scanner should be able to extract job title and Role
 
