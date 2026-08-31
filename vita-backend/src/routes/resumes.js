@@ -1,6 +1,6 @@
 import express from "express";
 import multer from "multer";
-import pdfParse from "pdf-parse";
+import * as pdfParse from 'pdf-parse';
 import mammoth from "mammoth";
 import pool from "../db.js";
 
