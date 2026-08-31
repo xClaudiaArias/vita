@@ -161,6 +161,32 @@ const globalStyles = `
   .vita-resume-option:hover {
     transform: translateY(-1px);
   }
+
+  /* Dashboard's two-column layout — a real breakpoint rather than
+     flex-wrap guesswork, so the columns only split once there's
+     genuinely enough width for both to breathe. */
+  .vita-dashboard-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 16px;
+    align-items: start;
+  }
+  @media (min-width: 760px) {
+    .vita-dashboard-grid {
+      grid-template-columns: minmax(0, 2fr) minmax(220px, 1fr);
+    }
+  }
+
+  /* Flat list rows (Coming up, Recent activity) — divider lines
+     instead of nested cards, since these are informational lists,
+     not individually actionable content. */
+  .vita-list-row {
+    padding: 10px 0;
+    border-bottom: 1px solid #E4DCD5;
+  }
+  .vita-list-row:last-child {
+    border-bottom: none;
+  }
 `;
 
 const statusStyles = {
@@ -1420,127 +1446,204 @@ function Dashboard() {
   }
 
   const firstName = (data.user.name || "there").split(" ")[0];
-  const goalPct = Math.min(100, Math.round((data.weekly_progress / (data.user.weekly_goal || 1)) * 100));
+  const goal = data.user.weekly_goal || 1;
+  const progress = data.weekly_progress;
+  const goalPct = Math.min(100, Math.round((progress / goal) * 100));
+  const goalMet = goalPct >= 100;
+  const useSegments = goal <= 10; // beyond that, discrete segments get too thin to read
+
+  // A single, quiet "what's next" line — derived entirely from data we
+  // already have, never a fabricated suggestion. Priority order: an
+  // imminent interview outranks everything else, then goal progress,
+  // then unexplored matches. If none of these apply, nothing is shown —
+  // manufacturing a nudge when there's genuinely nothing to say would
+  // undercut the ones that matter.
+  const nextInterview = data.upcoming.find((u) => u.type === "interview");
+  let nextAction = null;
+  if (nextInterview) {
+    const hoursAway = (new Date(nextInterview.date) - new Date()) / 36e5;
+    if (hoursAway <= 72) {
+      nextAction = `Your interview with ${nextInterview.company} is coming up — might be worth a practice round.`;
+    }
+  }
+  if (!nextAction && goalMet) {
+    nextAction = "You've hit your goal this week — nice work. A saved match below could be next.";
+  } else if (!nextAction && goal - progress === 1) {
+    nextAction = "One more application this week and you'll hit your goal.";
+  } else if (!nextAction && data.new_matches.length > 0) {
+    nextAction = `You have ${data.new_matches.length} saved job${data.new_matches.length === 1 ? "" : "s"} waiting for a closer look.`;
+  }
 
   return (
     <div>
+      {/* ── Header: personal, hierarchy-forward ── */}
       <div style={{ background: colors.indigo, borderRadius: 16, padding: "1.5rem", marginBottom: 12 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
+        <div style={{ display: "flex", gap: 14, alignItems: "center", marginBottom: 18, flexWrap: "wrap" }}>
+          {data.user.avatar_url ? (
+            <img
+              src={data.user.avatar_url}
+              alt=""
+              className={data.user.current_streak > 0 ? "vita-avatar-pulse" : ""}
+              style={{ width: 52, height: 52, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }}
+              onError={(e) => { e.target.style.display = "none"; }}
+            />
+          ) : (
+            <div
+              className={data.user.current_streak > 0 ? "vita-avatar-pulse" : ""}
+              style={{ width: 52, height: 52, borderRadius: "50%", background: colors.terracotta, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}
+            >
+              <p style={{ fontFamily: "Inter, sans-serif", fontSize: 16, fontWeight: 500, color: "#4A1B0C", margin: 0 }}>
+                {firstName.slice(0, 2).toUpperCase()}
+              </p>
+            </div>
+          )}
           <div>
-            <p style={{ fontFamily: "Fraunces, serif", fontSize: 20, color: colors.cream, margin: "0 0 4px" }}>
+            <p style={{ ...type.display, fontSize: 24, color: colors.cream, margin: "0 0 6px" }}>
               Good to see you, {firstName}
             </p>
-            <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: colors.lavender, margin: 0 }}>
-              {data.user.current_streak > 0
-                ? `${data.user.current_streak}-day streak · you're on a roll`
-                : "Let's get your streak going"}
+            {data.user.current_streak > 0 ? (
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "rgba(242,233,228,0.14)", borderRadius: 20, padding: "3px 10px" }}>
+                <span style={{ fontSize: 12 }}>🔥</span>
+                <span style={{ ...type.caption, color: colors.cream }}>{data.user.current_streak}-day streak · you're on a roll</span>
+              </span>
+            ) : (
+              <span style={{ ...type.caption, color: colors.lavender }}>Let's get your streak going</span>
+            )}
+          </div>
+        </div>
+
+        {/* ── Weekly goal: discrete segments so progress reads as "3 of 5 done" at a glance ── */}
+        <div className={goalMet ? "vita-goal-met" : ""}>
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+            <p style={{ ...type.caption, color: colors.cream, margin: 0 }}>
+              {goalMet ? "Weekly goal reached! 🎉" : `Weekly goal: ${goal} application${goal === 1 ? "" : "s"}`}
+            </p>
+            <p style={{ ...type.caption, fontWeight: 500, color: colors.cream, margin: 0 }}>
+              {progress} / {goal}
             </p>
           </div>
-          <div style={{ textAlign: "center" }}>
-            {data.user.avatar_url ? (
-              <img
-                src={data.user.avatar_url}
-                alt=""
-                className={data.user.current_streak > 0 ? "vita-avatar-pulse" : ""}
-                style={{ width: 44, height: 44, borderRadius: "50%", objectFit: "cover", margin: "0 0 4px" }}
-                onError={(e) => { e.target.style.display = "none"; }}
-              />
-            ) : (
-              <div
-                className={data.user.current_streak > 0 ? "vita-avatar-pulse" : ""}
-                style={{ width: 44, height: 44, borderRadius: "50%", background: colors.terracotta, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 0 4px" }}
-              >
-                <p style={{ fontFamily: "Inter, sans-serif", fontSize: 14, fontWeight: 500, color: "#4A1B0C", margin: 0 }}>
-                  {firstName.slice(0, 2).toUpperCase()}
+          {useSegments ? (
+            <div style={{ display: "flex", gap: 4 }}>
+              {Array.from({ length: goal }).map((_, i) => (
+                <div
+                  key={i}
+                  className="vita-progress-fill"
+                  style={{
+                    flex: 1,
+                    height: 8,
+                    borderRadius: 4,
+                    background: i < progress ? (goalMet ? colors.terracotta : colors.lavender) : "rgba(242,233,228,0.18)",
+                  }}
+                />
+              ))}
+            </div>
+          ) : (
+            <div style={{ background: "rgba(242,233,228,0.18)", borderRadius: 20, height: 8, overflow: "hidden" }}>
+              <div className="vita-progress-fill" style={{ background: goalMet ? colors.terracotta : colors.lavender, height: "100%", width: `${goalPct}%`, borderRadius: 20 }} />
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ── What's next: a thin banner, not another card ── */}
+      {nextAction && (
+        <div className="vita-fade-in" style={{ background: colors.terracottaBg, borderRadius: 10, padding: "10px 16px", marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ fontSize: 14 }}>💡</span>
+          <p style={{ ...type.caption, color: colors.terracottaText, margin: 0 }}>{nextAction}</p>
+        </div>
+      )}
+
+      {/* ── Two-column body: real breakpoint, not flex-wrap ── */}
+      <div className="vita-dashboard-grid">
+        <div>
+          {/* Coming up — flat list, not a card, since it's purely informational */}
+          <div style={{ marginBottom: 20 }}>
+            <p style={{ ...type.label, color: colors.indigo, margin: "0 0 8px" }}>Coming up</p>
+            {data.upcoming.length === 0 ? (
+              <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 0" }}>
+                <span style={{ fontSize: 14, opacity: 0.6 }}>🗓️</span>
+                <p style={{ ...type.caption, color: colors.faint, margin: 0 }}>
+                  Nothing on the calendar — interviews and deadlines will show up here.
                 </p>
+              </div>
+            ) : (
+              <div>
+                {data.upcoming.map((item, i) => (
+                  <div key={i} className="vita-list-row" style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12 }}>
+                    <p style={{ ...type.body, color: colors.ink, margin: 0 }}>
+                      {item.type === "interview" ? "Interview" : "Deadline"} · {item.company}
+                    </p>
+                    <p style={{ ...type.caption, color: colors.faint, margin: 0, whiteSpace: "nowrap" }}>
+                      {new Date(item.date).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Recent activity — same flat-list treatment, lower visual weight than Coming up via smaller label */}
+          <div>
+            <p style={{ ...type.label, color: colors.muted, margin: "0 0 8px" }}>Recent activity</p>
+            {data.recent_activity.length === 0 ? (
+              <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 0" }}>
+                <span style={{ fontSize: 14, opacity: 0.6 }}>〰️</span>
+                <p style={{ ...type.caption, color: colors.faint, margin: 0 }}>
+                  Nothing yet — your activity will start showing up as you go.
+                </p>
+              </div>
+            ) : (
+              <div>
+                {data.recent_activity.map((a, i) => {
+                  const dotColor = { application: colors.lavender, resume: colors.terracotta, suggestion: colors.terracotta, interview: colors.indigo }[a.type] || colors.lavender;
+                  return (
+                    <div key={i} className="vita-list-row" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <span style={{ width: 6, height: 6, borderRadius: "50%", background: dotColor, display: "inline-block", flexShrink: 0 }} />
+                      <p style={{ ...type.caption, color: colors.muted, margin: 0 }}>
+                        {a.type === "application" ? "Applied to " : ""}{a.description}
+                      </p>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
         </div>
-        <div
-          className={goalPct >= 100 ? "vita-goal-met" : ""}
-          style={{ background: "rgba(242,233,228,0.12)", borderRadius: 10, padding: "10px 14px" }}
-        >
-          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-            <p style={{ fontFamily: "Inter, sans-serif", fontSize: 12, color: colors.cream, margin: 0 }}>
-              {goalPct >= 100 ? "Weekly goal reached! 🎉" : `Weekly goal: ${data.user.weekly_goal} applications`}
-            </p>
-            <p style={{ fontFamily: "Inter, sans-serif", fontSize: 12, fontWeight: 500, color: colors.cream, margin: 0 }}>
-              {data.weekly_progress} / {data.user.weekly_goal}
-            </p>
-          </div>
-          <div style={{ background: "rgba(242,233,228,0.18)", borderRadius: 20, height: 6, overflow: "hidden" }}>
-            <div
-              className="vita-progress-fill"
-              style={{
-                background: goalPct >= 100 ? colors.terracotta : colors.lavender,
-                height: "100%",
-                width: `${goalPct}%`,
-                borderRadius: 20,
-              }}
-            />
-          </div>
-        </div>
-      </div>
 
-      <div style={{ display: "flex", gap: 12, marginBottom: 12, flexWrap: "wrap" }}>
-        <div style={{ flex: 1, minWidth: 220, background: "#fff", borderRadius: 12, padding: "14px 16px" }}>
-          <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, fontWeight: 500, color: colors.indigo, margin: "0 0 10px" }}>
-            Coming up
-          </p>
-          {data.upcoming.length === 0 ? (
-            <p style={{ fontFamily: "Inter, sans-serif", fontSize: 12, color: colors.faint, margin: 0 }}>Nothing on the horizon.</p>
-          ) : (
-            data.upcoming.map((item, i) => (
-              <div key={i} style={{ marginBottom: 8 }}>
-                <p style={{ fontFamily: "Inter, sans-serif", fontSize: 12, color: colors.ink, margin: 0 }}>
-                  {item.type === "interview" ? "Interview" : "Deadline"} · {item.company}
-                </p>
-                <p style={{ fontFamily: "Inter, sans-serif", fontSize: 11, color: colors.faint, margin: 0 }}>
-                  {new Date(item.date).toLocaleString()}
-                </p>
-              </div>
-            ))
-          )}
-        </div>
-
-        <div style={{ flex: 1, minWidth: 220, background: "#fff", borderRadius: 12, padding: "14px 16px" }}>
-          <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, fontWeight: 500, color: colors.indigo, margin: "0 0 10px" }}>
-            New matches
-          </p>
+        {/* New matches — the one section that gets raised-card treatment, since these are the most actionable/inviting items on the page */}
+        <div>
+          <p style={{ ...type.label, color: colors.indigo, margin: "0 0 8px" }}>New matches</p>
           {data.new_matches.length === 0 ? (
-            <p style={{ fontFamily: "Inter, sans-serif", fontSize: 12, color: colors.faint, margin: 0 }}>None saved yet.</p>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 0" }}>
+              <span style={{ fontSize: 14, opacity: 0.6 }}>✨</span>
+              <p style={{ ...type.caption, color: colors.faint, margin: 0 }}>
+                No saved matches yet — jobs you save will land here.
+              </p>
+            </div>
           ) : (
-            data.new_matches.map((m) => (
-              <div key={m.id} style={{ marginBottom: 8 }}>
-                <p style={{ fontFamily: "Inter, sans-serif", fontSize: 12, color: colors.ink, margin: 0 }}>
-                  {m.role_title} · {m.company}
-                </p>
-              </div>
-            ))
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {data.new_matches.map((m, i) => (
+                <Card key={m.id} style={{ padding: "10px 12px", display: "flex", alignItems: "center", gap: 10 }}>
+                  <div style={{
+                    width: 30, height: 30, borderRadius: 8, flexShrink: 0,
+                    background: i % 2 === 0 ? colors.lavenderBg : colors.terracottaBg,
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                  }}>
+                    <span style={{ ...type.caption, fontWeight: 600, color: i % 2 === 0 ? colors.indigoDeep : colors.terracottaText, margin: 0 }}>
+                      {m.company.slice(0, 1).toUpperCase()}
+                    </span>
+                  </div>
+                  <div style={{ minWidth: 0 }}>
+                    <p style={{ ...type.caption, fontWeight: 500, color: colors.ink, margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {m.role_title}
+                    </p>
+                    <p style={{ ...type.caption, color: colors.faint, margin: 0 }}>{m.company}</p>
+                  </div>
+                </Card>
+              ))}
+            </div>
           )}
         </div>
-      </div>
-
-      <div style={{ background: "#fff", borderRadius: 12, padding: "14px 16px" }}>
-        <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, fontWeight: 500, color: colors.indigo, margin: "0 0 10px" }}>
-          Recent activity
-        </p>
-        {data.recent_activity.length === 0 ? (
-          <p style={{ fontFamily: "Inter, sans-serif", fontSize: 12, color: colors.faint, margin: 0 }}>Nothing yet.</p>
-        ) : (
-          data.recent_activity.map((a, i) => {
-            const dotColor = { application: colors.lavender, resume: colors.terracotta, suggestion: colors.terracotta, interview: colors.indigo }[a.type] || colors.lavender;
-            return (
-              <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-                <span style={{ width: 6, height: 6, borderRadius: "50%", background: dotColor, display: "inline-block", flexShrink: 0 }} />
-                <p style={{ fontFamily: "Inter, sans-serif", fontSize: 12, color: colors.muted, margin: 0 }}>
-                  {a.type === "application" ? "Applied to " : ""}{a.description}
-                </p>
-              </div>
-            );
-          })
-        )}
       </div>
     </div>
   );
