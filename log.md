@@ -13,7 +13,7 @@
 
 <!-- FIX:  🐞 -->
 - [x] Scanner is bugged
-- [ ] Resume needs to be parsed
+- [x] Resume needs to be parsed
 - [ ] Scanner should be able to extract job title and Role
 
 ---
