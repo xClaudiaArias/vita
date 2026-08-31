@@ -860,6 +860,8 @@ function Scanner({ onNavigateToResumes }) {
   const [openReasonId, setOpenReasonId] = useState(null);
   const [editingSuggestionId, setEditingSuggestionId] = useState(null);
   const [suggestionDraft, setSuggestionDraft] = useState("");
+  const [recognizing, setRecognizing] = useState(false);
+  const [recognizeError, setRecognizeError] = useState("");
 
   useEffect(() => {
     apiFetch("/resumes").then(setResumes).catch(() => {});
@@ -869,7 +871,7 @@ function Scanner({ onNavigateToResumes }) {
   // here — there's no backend URL-parsing capability. So we save it as a
   // reference (source_url, which the job-postings API already accepts) and
   // ask for the real text, rather than pretending we can read the page.
-  const handleCaptureContinue = () => {
+  const handleCaptureContinue = async () => {
     const trimmed = captureText.trim();
     if (!trimmed) return;
     const isBareUrl = /^https?:\/\/\S+$/.test(trimmed);
@@ -882,6 +884,26 @@ function Scanner({ onNavigateToResumes }) {
     setDescription(trimmed);
     setUrlSavedNotice(false);
     setStep("recognize");
+
+    // Try to fill in company/role automatically from the text the person
+    // just pasted, rather than handing them two blank fields to type into.
+    // If this fails for any reason (offline, no AI credits, ambiguous
+    // text), we just fall back to blank editable fields — the flow never
+    // gets blocked by an extraction failure.
+    setRecognizing(true);
+    setRecognizeError("");
+    try {
+      const result = await apiFetch("/job-postings/extract", {
+        method: "POST",
+        body: JSON.stringify({ text: trimmed }),
+      });
+      if (result.company) setCompany(result.company);
+      if (result.role_title) setRoleTitle(result.role_title);
+    } catch (err) {
+      setRecognizeError("Couldn't auto-detect the details — just fill these in.");
+    } finally {
+      setRecognizing(false);
+    }
   };
 
   const runScan = async () => {
@@ -986,16 +1008,20 @@ function Scanner({ onNavigateToResumes }) {
     );
   }
 
-  // ── Step 2: Recognition — confirm the basics without re-asking for the description ──
+  // ── Step 2: Recognition — VITA fills this in automatically where it can ──
   if (step === "recognize") {
     return (
       <Card elevation="surface" style={{ padding: "24px 26px" }}>
         <TextLink tone="muted" onClick={() => setStep("capture")}>← Back</TextLink>
         <p style={{ ...type.heading, color: colors.indigo, margin: "10px 0 4px" }}>
-          Tell us about this role
+          {recognizing ? "Reading the posting…" : "Here's what VITA found"}
         </p>
-        <p style={{ ...type.caption, color: colors.faint, margin: "0 0 16px" }}>
-          Just the basics — VITA works from the description you already pasted.
+        <p className={recognizing ? "vita-breathe" : ""} style={{ ...type.caption, color: colors.faint, margin: "0 0 16px" }}>
+          {recognizing
+            ? "Pulling out the company and role."
+            : recognizeError
+              ? recognizeError
+              : "Double-check these — edit anything that's off."}
         </p>
 
         <div style={{ background: "#fff", borderRadius: 10, border: `1px solid ${colors.border}`, padding: "10px 12px", marginBottom: space.lg }}>
@@ -1006,13 +1032,13 @@ function Scanner({ onNavigateToResumes }) {
         </div>
 
         <FormField label="Company">
-          <input className="vita-field" style={inputStyle} value={company} onChange={(e) => setCompany(e.target.value)} placeholder="e.g. Notion" />
+          <input className="vita-field" style={inputStyle} value={company} onChange={(e) => setCompany(e.target.value)} placeholder="e.g. Notion" disabled={recognizing} />
         </FormField>
         <FormField label="Role title">
-          <input className="vita-field" style={inputStyle} value={roleTitle} onChange={(e) => setRoleTitle(e.target.value)} placeholder="e.g. Senior Product Designer" />
+          <input className="vita-field" style={inputStyle} value={roleTitle} onChange={(e) => setRoleTitle(e.target.value)} placeholder="e.g. Senior Product Designer" disabled={recognizing} />
         </FormField>
 
-        <Button onClick={() => setStep("resume")} style={{ opacity: (!company.trim() || !roleTitle.trim()) ? 0.5 : 1 }}>
+        <Button onClick={() => setStep("resume")} disabled={recognizing} style={{ opacity: (recognizing || !company.trim() || !roleTitle.trim()) ? 0.5 : 1 }}>
           Continue
         </Button>
       </Card>
