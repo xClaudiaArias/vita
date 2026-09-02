@@ -2770,6 +2770,25 @@ function Settings({ user, onUpdated }) {
 }
 
 // ── App shell ──────────────────────────────────────
+// Nav structure: VITA (the wordmark) is Home. Everything else falls under
+// one of three mission categories, matching "Prepare → Apply → Present" —
+// categories aren't destinations themselves, just groupings that expand
+// to reveal their pages.
+// Nav order follows VITA's actual loop, not an arbitrary category split:
+// Resumes (raw material) → Scanner (find/scan/tailor/apply — the hinge
+// the whole loop turns on) → Tracker (track it) → Interview Prep (get
+// ready) → Portfolio (present yourself, ongoing alongside the loop).
+// Scanner gets a distinct visual mark (a small dot, not a different
+// shape) rather than being folded into either "Prepare" or "Apply" —
+// it genuinely belongs to both.
+const navItems = [
+  { key: "resumes", label: "Resumes" },
+  { key: "scanner", label: "Scanner", isAnchor: true },
+  { key: "tracker", label: "Tracker" },
+  { key: "chat", label: "Interview Prep" },
+  { key: "portfolio", label: "Portfolio" },
+];
+
 export default function VitaApp() {
   const [tab, setTab] = useState("dashboard");
   const [user, setUser] = useState(null);
@@ -2827,14 +2846,21 @@ export default function VitaApp() {
       <style>{globalStyles}</style>
 
       <div style={{ maxWidth: contentMaxWidth, margin: "0 auto" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: space.lg }}>
-          <p style={{ ...type.heading, fontSize: 22, color: colors.indigo, margin: 0 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: space.md }}>
+          {/* The wordmark IS Home — no separate "Home" pill needed */}
+          <button
+            onClick={() => setTab("dashboard")}
+            style={{
+              background: "none", border: "none", padding: 0, cursor: "pointer",
+              ...type.heading, fontSize: 22,
+              color: tab === "dashboard" ? colors.indigo : colors.muted,
+            }}
+          >
             Vita
-          </p>
+          </button>
           {/* Account cluster: name, Settings, and Log out grouped together and
               visually distinct from the core-tool tabs below — Settings is an
-              account-level action, not a daily tool, so it doesn't compete
-              with Dashboard/Scanner/Tracker for attention. */}
+              account-level action, not a stop on the loop. */}
           <div style={{ display: "flex", alignItems: "center", gap: space.md }}>
             <span style={{ ...type.caption, color: colors.muted }}>{user.name}</span>
             <TextLink tone="muted" onClick={() => setTab("settings")}>Settings</TextLink>
@@ -2847,33 +2873,46 @@ export default function VitaApp() {
           </div>
         </div>
 
-        <div style={{ display: "flex", gap: space.sm, marginBottom: space.lg, flexWrap: "wrap" }}>
-          {[
-            { key: "dashboard", label: "Dashboard" },
-            { key: "resumes", label: "Resumes" },
-            { key: "scanner", label: "Scanner" },
-            { key: "tracker", label: "Tracker" },
-            { key: "chat", label: "Interview Prep" },
-            { key: "portfolio", label: "Portfolio" },
-          ].map((t) => (
-            <button
-              key={t.key}
-              className="vita-tab-btn"
-              onClick={() => setTab(t.key)}
-              style={{
-                background: tab === t.key ? colors.indigo : "#fff",
-                color: tab === t.key ? colors.cream : colors.muted,
-                border: tab === t.key ? "none" : `1px solid ${colors.border}`,
-                borderRadius: 20,
-                padding: "6px 16px",
-                fontFamily: "Inter, sans-serif",
-                fontSize: 12,
-                fontWeight: 500,
-                cursor: "pointer",
-              }}
-            >
-              {t.label}
-            </button>
+        {/* The loop, in order */}
+        <div style={{ display: "flex", gap: space.sm, marginBottom: space.lg, flexWrap: "wrap", alignItems: "center" }}>
+          {navItems.map((item, i) => (
+            <div key={item.key} style={{ display: "flex", alignItems: "center", gap: space.sm }}>
+              <button
+                className="vita-tab-btn"
+                onClick={() => setTab(item.key)}
+                style={{
+                  background: tab === item.key ? colors.indigo : "#fff",
+                  color: tab === item.key ? colors.cream : colors.muted,
+                  border: tab === item.key
+                    ? "none"
+                    : item.isAnchor ? `1px solid ${colors.terracotta}` : `1px solid ${colors.border}`,
+                  borderRadius: 20,
+                  padding: "6px 16px",
+                  fontFamily: "Inter, sans-serif",
+                  fontSize: 12,
+                  fontWeight: item.isAnchor ? 600 : 500,
+                  cursor: "pointer",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                }}
+              >
+                {item.isAnchor && (
+                  <span style={{
+                    width: 6, height: 6, borderRadius: "50%",
+                    background: tab === item.key ? colors.cream : colors.terracotta,
+                    flexShrink: 0,
+                  }} />
+                )}
+                {item.label}
+              </button>
+              {/* Thin connector between steps, standing in for the loop's arrows —
+                  skipped after the last item and never rendered on narrow wraps
+                  since flex-wrap will naturally drop it to the next line with its pill. */}
+              {i < navItems.length - 1 && (
+                <span style={{ color: colors.border, fontSize: 12 }}>→</span>
+              )}
+            </div>
           ))}
         </div>
 
