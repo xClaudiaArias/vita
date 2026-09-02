@@ -14,7 +14,7 @@ router.get("/", async (req, res) => {
   const user_id = req.userId;
 
   try {
-    const [userResult, weeklyResult, upcomingResult, matchesResult, activityResult] =
+    const [userResult, weeklyResult, upcomingResult, matchesResult, activityResult, totalResult, interviewingResult] =
       await Promise.all([
         // Basic profile + streak/goal settings
         pool.query(
@@ -88,6 +88,19 @@ router.get("/", async (req, res) => {
            LIMIT 8`,
           [user_id]
         ),
+
+        // All-time application count — gives the dashboard a sense of
+        // "journey so far" rather than only this week's slice.
+        pool.query(
+          `SELECT COUNT(*)::int AS count FROM applications WHERE user_id = $1`,
+          [user_id]
+        ),
+
+        // Applications currently at the interviewing stage.
+        pool.query(
+          `SELECT COUNT(*)::int AS count FROM applications WHERE user_id = $1 AND status = 'interviewing'`,
+          [user_id]
+        ),
       ]);
 
     if (userResult.rows.length === 0) {
@@ -100,6 +113,8 @@ router.get("/", async (req, res) => {
       upcoming: upcomingResult.rows,
       new_matches: matchesResult.rows,
       recent_activity: activityResult.rows,
+      total_applications: totalResult.rows[0].count,
+      interviewing_count: interviewingResult.rows[0].count,
     });
   } catch (err) {
     console.error(err);
