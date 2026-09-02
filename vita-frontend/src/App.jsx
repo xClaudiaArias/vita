@@ -1441,7 +1441,60 @@ const inputStyle = {
 };
 
 // ── Dashboard view ─────────────────────────────────
-function Dashboard() {
+// Small time-formatting helpers, used only by the Dashboard's Coming Up
+// and Recent Activity sections — turning raw dates into the kind of
+// relative language that makes a list feel like "momentum" rather than
+// a raw timestamp dump.
+function formatDaysAway(dateStr) {
+  const now = new Date();
+  const target = new Date(dateStr);
+  const days = Math.round((target - now) / 86400000);
+  if (days <= 0) return "Today";
+  if (days === 1) return "Tomorrow";
+  if (days <= 6) return `In ${days} days`;
+  return target.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+function formatRelativeTime(dateStr) {
+  const now = new Date();
+  const target = new Date(dateStr);
+  const minutes = Math.round((now - target) / 60000);
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.round(hours / 24);
+  if (days === 1) return "Yesterday";
+  if (days <= 6) return `${days} days ago`;
+  return target.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+// A consistent, lightly-branded empty state for Dashboard sections —
+// lighter than the full EmptyState component (no border/card), since
+// these live inline within an already-composed section, and each can
+// carry a real next action rather than just announcing absence.
+function DashEmpty({ icon, title, subtitle, actionLabel, onAction }) {
+  return (
+    <div style={{ display: "flex", gap: 10, padding: "6px 0" }}>
+      <div style={{ width: 28, height: 28, borderRadius: 8, background: colors.lavenderBg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+        <span style={{ fontSize: 13 }}>{icon}</span>
+      </div>
+      <div>
+        <p style={{ ...type.caption, fontWeight: 500, color: colors.muted, margin: "0 0 2px" }}>{title}</p>
+        <p style={{ ...type.caption, color: colors.faint, margin: 0 }}>
+          {subtitle}
+          {actionLabel && onAction && (
+            <>
+              {" "}<TextLink onClick={onAction}>{actionLabel}</TextLink>
+            </>
+          )}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function Dashboard({ onNavigate }) {
   const [data, setData] = useState(null);
   const [status, setStatus] = useState("idle");
   const [errorMsg, setErrorMsg] = useState("");
@@ -1502,9 +1555,9 @@ function Dashboard() {
 
   return (
     <div>
-      {/* ── Header: personal, hierarchy-forward ── */}
+      {/* ── Header: greeting, streak, journey stats, weekly goal ── */}
       <div style={{ background: colors.indigo, borderRadius: 16, padding: "1.5rem", marginBottom: 12 }}>
-        <div style={{ display: "flex", gap: 14, alignItems: "center", marginBottom: 18, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: 14, alignItems: "center", marginBottom: 16, flexWrap: "wrap" }}>
           {data.user.avatar_url ? (
             <img
               src={data.user.avatar_url}
@@ -1535,6 +1588,22 @@ function Dashboard() {
             ) : (
               <span style={{ ...type.caption, color: colors.lavender }}>Let's get your streak going</span>
             )}
+          </div>
+        </div>
+
+        {/* ── Journey stats: typography doing the storytelling, not a chart ── */}
+        <div style={{ display: "flex", gap: 24, marginBottom: 20, paddingBottom: 18, borderBottom: "1px solid rgba(242,233,228,0.14)", flexWrap: "wrap" }}>
+          <div>
+            <p style={{ ...type.display, fontSize: 26, color: colors.cream, margin: "0 0 2px" }}>{data.total_applications}</p>
+            <p style={{ ...type.caption, color: colors.lavender, margin: 0 }}>
+              application{data.total_applications === 1 ? "" : "s"} sent
+            </p>
+          </div>
+          <div>
+            <p style={{ ...type.display, fontSize: 26, color: colors.cream, margin: "0 0 2px" }}>{data.interviewing_count}</p>
+            <p style={{ ...type.caption, color: colors.lavender, margin: 0 }}>
+              in progress
+            </p>
           </div>
         </div>
 
@@ -1582,16 +1651,15 @@ function Dashboard() {
       {/* ── Two-column body: real breakpoint, not flex-wrap ── */}
       <div className="vita-dashboard-grid">
         <div>
-          {/* Coming up — flat list, not a card, since it's purely informational */}
+          {/* Coming up — flat list, relative urgency as the primary label */}
           <div style={{ marginBottom: 20 }}>
             <p style={{ ...type.label, color: colors.indigo, margin: "0 0 8px" }}>Coming up</p>
             {data.upcoming.length === 0 ? (
-              <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 0" }}>
-                <span style={{ fontSize: 14, opacity: 0.6 }}>🗓️</span>
-                <p style={{ ...type.caption, color: colors.faint, margin: 0 }}>
-                  Nothing on the calendar — interviews and deadlines will show up here.
-                </p>
-              </div>
+              <DashEmpty
+                icon="🗓️"
+                title="Nothing on the horizon yet."
+                subtitle="Your next interview or deadline will appear here."
+              />
             ) : (
               <div>
                 {data.upcoming.map((item, i) => (
@@ -1599,8 +1667,8 @@ function Dashboard() {
                     <p style={{ ...type.body, color: colors.ink, margin: 0 }}>
                       {item.type === "interview" ? "Interview" : "Deadline"} · {item.company}
                     </p>
-                    <p style={{ ...type.caption, color: colors.faint, margin: 0, whiteSpace: "nowrap" }}>
-                      {new Date(item.date).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+                    <p style={{ ...type.caption, fontWeight: 500, color: item.type === "interview" ? colors.terracottaText : colors.faint, margin: 0, whiteSpace: "nowrap" }}>
+                      {formatDaysAway(item.date)}
                     </p>
                   </div>
                 ))}
@@ -1608,26 +1676,32 @@ function Dashboard() {
             )}
           </div>
 
-          {/* Recent activity — same flat-list treatment, lower visual weight than Coming up via smaller label */}
+          {/* Recent activity — relative time turns this into a momentum stream, not a raw log */}
           <div>
             <p style={{ ...type.label, color: colors.muted, margin: "0 0 8px" }}>Recent activity</p>
             {data.recent_activity.length === 0 ? (
-              <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 0" }}>
-                <span style={{ fontSize: 14, opacity: 0.6 }}>〰️</span>
-                <p style={{ ...type.caption, color: colors.faint, margin: 0 }}>
-                  Nothing yet — your activity will start showing up as you go.
-                </p>
-              </div>
+              <DashEmpty
+                icon="〰️"
+                title="No momentum yet — that's about to change."
+                subtitle="Create a resume or run your first scan to get started."
+                actionLabel="Go to Resumes →"
+                onAction={onNavigate ? () => onNavigate("resumes") : undefined}
+              />
             ) : (
               <div>
-                {data.recent_activity.map((a, i) => {
+                {data.recent_activity.slice(0, 6).map((a, i) => {
                   const dotColor = { application: colors.lavender, resume: colors.terracotta, suggestion: colors.terracotta, interview: colors.indigo }[a.type] || colors.lavender;
                   return (
-                    <div key={i} className="vita-list-row" style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <span style={{ width: 6, height: 6, borderRadius: "50%", background: dotColor, display: "inline-block", flexShrink: 0 }} />
-                      <p style={{ ...type.caption, color: colors.muted, margin: 0 }}>
-                        {a.type === "application" ? "Applied to " : ""}{a.description}
-                      </p>
+                    <div key={i} className="vita-list-row" style={{ display: "flex", alignItems: "baseline", gap: 8, justifyContent: "space-between" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+                        <span style={{ width: 6, height: 6, borderRadius: "50%", background: dotColor, display: "inline-block", flexShrink: 0 }} />
+                        <p style={{ ...type.caption, color: colors.muted, margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {a.type === "application" ? "Applied to " : ""}{a.description}
+                        </p>
+                      </div>
+                      <span style={{ ...type.caption, color: colors.faint, whiteSpace: "nowrap", flexShrink: 0 }}>
+                        {formatRelativeTime(a.date)}
+                      </span>
                     </div>
                   );
                 })}
@@ -1640,12 +1714,13 @@ function Dashboard() {
         <div>
           <p style={{ ...type.label, color: colors.indigo, margin: "0 0 8px" }}>New matches</p>
           {data.new_matches.length === 0 ? (
-            <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 0" }}>
-              <span style={{ fontSize: 14, opacity: 0.6 }}>✨</span>
-              <p style={{ ...type.caption, color: colors.faint, margin: 0 }}>
-                No saved matches yet — jobs you save will land here.
-              </p>
-            </div>
+            <DashEmpty
+              icon="✨"
+              title="Nothing saved yet."
+              subtitle="Scan a job posting to save your first match."
+              actionLabel="Go to Scanner →"
+              onAction={onNavigate ? () => onNavigate("scanner") : undefined}
+            />
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {data.new_matches.map((m, i) => (
@@ -2917,7 +2992,7 @@ export default function VitaApp() {
         </div>
 
         <div key={tab} className="vita-fade-in">
-          {tab === "dashboard" && <Dashboard />}
+          {tab === "dashboard" && <Dashboard onNavigate={setTab} />}
           {tab === "resumes" && <Resumes />}
           {tab === "scanner" && <Scanner onNavigateToResumes={() => setTab("resumes")} />}
           {tab === "tracker" && <Tracker />}
