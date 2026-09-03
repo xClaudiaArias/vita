@@ -1,6 +1,6 @@
 import express from "express";
 import multer from "multer";
-import * as pdfParse from 'pdf-parse';
+import pdfParse from "pdf-parse";
 import mammoth from "mammoth";
 import pool from "../db.js";
 
@@ -10,7 +10,12 @@ const router = express.Router();
 // plenty for a resume, small enough to not be a DoS vector.
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
 
-
+// ─────────────────────────────────────────
+// Shared helper: creates a resume + sections + bullets in one transaction.
+// Used by both POST /resumes (manual entry) and POST /resumes/parse
+// (AI-parsed from pasted text or an uploaded file) so the actual
+// database-writing logic only exists in one place.
+// ─────────────────────────────────────────
 async function createResumeWithSections(userId, label, sections) {
   const client = await pool.connect();
   try {
@@ -64,6 +69,7 @@ router.post("/", async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
 
 router.post("/parse", upload.single("file"), async (req, res) => {
   const label = req.body.label;
@@ -166,8 +172,21 @@ Rules:
 
 router.get("/", async (req, res) => {
   try {
+    // LATERAL join to aggregate each resume's scan history — same pattern
+    // already used in applications.js for "latest scan". Resumes never
+    // scanned still return one row (scan_count 0, last_scanned_at null),
+    // since it's a LEFT JOIN.
     const result = await pool.query(
-      "SELECT id, label, updated_at FROM resumes WHERE user_id = $1 ORDER BY updated_at DESC",
+      `SELECT r.id, r.label, r.updated_at,
+              COALESCE(s.scan_count, 0) AS scan_count,
+              s.last_scanned_at
+       FROM resumes r
+       LEFT JOIN LATERAL (
+         SELECT COUNT(*)::int AS scan_count, MAX(created_at) AS last_scanned_at
+         FROM scans WHERE scans.resume_id = r.id
+       ) s ON true
+       WHERE r.user_id = $1
+       ORDER BY r.updated_at DESC`,
       [req.userId]
     );
     res.json(result.rows);
@@ -176,7 +195,6 @@ router.get("/", async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
-
 
 router.patch("/bullets/:bulletId", async (req, res) => {
   const { bulletId } = req.params;
@@ -207,7 +225,6 @@ router.patch("/bullets/:bulletId", async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
-
 
 router.get("/:id", async (req, res) => {
   const { id } = req.params;
@@ -291,7 +308,6 @@ router.patch("/:id", async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
-
 
 router.delete("/:id", async (req, res) => {
   const { id } = req.params;
