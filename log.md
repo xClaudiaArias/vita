@@ -11,10 +11,10 @@
 - [x] Settings — name, weekly goal, avatar
 - [x] Motion pass — hover states, fades, progress animation
 
-<!-- FIX:  🐞 -->
+<!-- #TODO:  🐞 -->
 - [x] Scanner is bugged
 - [x] Resume needs to be parsed
-- [ ] Scanner should be able to extract job title and Role
+- [x] Scanner should be able to extract job title and Role
 
 ---
 
@@ -24,7 +24,7 @@
 
 **Order:**
 
-- [ ] Scanner *← next*
+- [x] Scanner *← next*
 - [ ] Dashboard
 - [ ] Resumes
 - [ ] Tracker
@@ -60,7 +60,7 @@ for each, define:
 - [ ] valid emails
 - [ ] easier sign up
 - [ ] parse resume
-- [ ] scan jobs
+- [x] scan jobs
 - [ ] restructure VITA to be calm productivity app + editorial portfolio + personal career journal
 - [ ] *too much manual data entry*
 - [ ] resume page needs WAY more personality -> could be pdf preview
