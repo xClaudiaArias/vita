@@ -848,8 +848,6 @@ function Scanner({ onNavigateToResumes }) {
   const [roleTitle, setRoleTitle] = useState("");
   const [description, setDescription] = useState("");
   const [sourceUrl, setSourceUrl] = useState("");
-  const [captureText, setCaptureText] = useState("");
-  const [urlSavedNotice, setUrlSavedNotice] = useState(false);
   const [jobId, setJobId] = useState(null);
   const [scan, setScan] = useState(null);
   const [errorMsg, setErrorMsg] = useState("");
@@ -867,22 +865,13 @@ function Scanner({ onNavigateToResumes }) {
     apiFetch("/resumes").then(setResumes).catch(() => {});
   }, []);
 
-  // A bare URL (no spaces, starts with http) can't actually be fetched from
-  // here — there's no backend URL-parsing capability. So we save it as a
-  // reference (source_url, which the job-postings API already accepts) and
-  // ask for the real text, rather than pretending we can read the page.
+  // URL is a persistent, optional field now — no more "paste it, get told
+  // to clear it and paste text instead" dance. Continue only requires the
+  // description, since that's the only thing VITA can actually read;
+  // whatever's in the URL field (if anything) rides along as source_url.
   const handleCaptureContinue = async () => {
-    const trimmed = captureText.trim();
-    if (!trimmed) return;
-    const isBareUrl = /^https?:\/\/\S+$/.test(trimmed);
-    if (isBareUrl) {
-      setSourceUrl(trimmed);
-      setCaptureText("");
-      setUrlSavedNotice(true);
-      return;
-    }
-    setDescription(trimmed);
-    setUrlSavedNotice(false);
+    const trimmedDescription = description.trim();
+    if (!trimmedDescription) return;
     setStep("recognize");
 
     // Try to fill in company/role automatically from the text the person
@@ -895,7 +884,7 @@ function Scanner({ onNavigateToResumes }) {
     try {
       const result = await apiFetch("/job-postings/extract", {
         method: "POST",
-        body: JSON.stringify({ text: trimmed }),
+        body: JSON.stringify({ text: trimmedDescription }),
       });
       if (result.company) setCompany(result.company);
       if (result.role_title) setRoleTitle(result.role_title);
@@ -981,28 +970,39 @@ function Scanner({ onNavigateToResumes }) {
           Let's see how you match.
         </p>
         <p style={{ ...type.body, color: colors.muted, margin: "0 0 18px", maxWidth: 440 }}>
-          Paste a job you're interested in — a link or the full description works. VITA will help you see where you stand and how to approach it.
+          Paste a job posting below. You can give me the link, the description, or both — VITA will take it from there.
         </p>
 
-        {urlSavedNotice && (
-          <div className="vita-fade-in" style={{ background: colors.lavenderBg, borderRadius: 8, padding: "8px 12px", marginBottom: space.md }}>
-            <p style={{ ...type.caption, color: colors.indigoDeep, margin: 0 }}>
-              🔗 Link saved. Paste the job description text below so VITA can actually read it.
-            </p>
+        <div style={{ background: "#fff", border: `1px solid ${colors.border}`, borderRadius: 12, padding: "16px 18px", marginBottom: space.md }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+            <span style={{ fontSize: 15, flexShrink: 0 }}>🔗</span>
+            <input
+              value={sourceUrl}
+              onChange={(e) => setSourceUrl(e.target.value)}
+              placeholder="Paste a job posting URL (optional)"
+              className="vita-field"
+              style={{ flex: 1, border: "none", outline: "none", fontFamily: "Inter, sans-serif", fontSize: 13, color: colors.ink, background: "transparent", padding: "4px 0" }}
+            />
           </div>
-        )}
 
-        <textarea
-          value={captureText}
-          onChange={(e) => setCaptureText(e.target.value)}
-          placeholder="Paste a job posting URL, or the full job description…"
-          rows={7}
-          className="vita-field"
-          style={{ ...inputStyle, resize: "vertical", marginBottom: space.md, fontSize: 14 }}
-        />
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+            <div style={{ flex: 1, height: 1, background: colors.border }} />
+            <span style={{ ...type.caption, color: colors.faint }}>or</span>
+            <div style={{ flex: 1, height: 1, background: colors.border }} />
+          </div>
 
-        <Button onClick={handleCaptureContinue} style={{ opacity: captureText.trim() ? 1 : 0.5 }}>
-          Continue
+          <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="Paste the full description here…"
+            rows={6}
+            className="vita-field"
+            style={{ width: "100%", border: "none", outline: "none", resize: "vertical", fontFamily: "Inter, sans-serif", fontSize: 14, color: colors.ink, background: "transparent", boxSizing: "border-box", padding: "4px 0" }}
+          />
+        </div>
+
+        <Button onClick={handleCaptureContinue} style={{ opacity: description.trim() ? 1 : 0.5 }}>
+          Continue →
         </Button>
       </Card>
     );
@@ -1057,41 +1057,57 @@ function Scanner({ onNavigateToResumes }) {
           Pick the version that fits this kind of role best.
         </p>
 
-        {resumes.length === 0 ? (
-          <Card elevation="surface" style={{ padding: "20px 22px", textAlign: "center", marginBottom: space.lg }}>
-            <p style={{ ...type.body, color: colors.muted, margin: "0 0 10px" }}>
-              You don't have a resume yet.
-            </p>
-            <TextLink onClick={onNavigateToResumes}>Go create one in Resumes →</TextLink>
-          </Card>
-        ) : (
-          <div className="vita-grid" style={{ marginBottom: space.lg }}>
-            {resumes.map((r) => {
-              const selected = r.id === selectedResumeId;
-              return (
-                <div
-                  key={r.id}
-                  className="vita-resume-option"
-                  onClick={() => setSelectedResumeId(r.id)}
-                  style={{
-                    background: "#fff",
-                    borderRadius: 12,
-                    padding: "14px 16px",
-                    border: selected ? `2px solid ${colors.indigo}` : `1px solid ${colors.border}`,
-                  }}
-                >
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <p style={{ ...type.bodyMedium, color: colors.ink, margin: 0 }}>{r.label}</p>
-                    {selected && <span className="vita-check-pop" style={{ color: colors.indigo, fontSize: 14 }}>✓</span>}
+        <div className="vita-grid" style={{ marginBottom: space.lg }}>
+          {resumes.map((r) => {
+            const selected = r.id === selectedResumeId;
+            return (
+              <div
+                key={r.id}
+                className="vita-resume-option"
+                onClick={() => setSelectedResumeId(r.id)}
+                style={{
+                  background: "#fff",
+                  borderRadius: 12,
+                  padding: "14px 16px",
+                  display: "flex",
+                  gap: 10,
+                  alignItems: "flex-start",
+                  border: selected ? `2px solid ${colors.indigo}` : `1px solid ${colors.border}`,
+                }}
+              >
+                <ResumeGlyph />
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 6 }}>
+                    <p style={{ ...type.bodyMedium, color: colors.ink, margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.label}</p>
+                    {selected && <span className="vita-check-pop" style={{ color: colors.indigo, fontSize: 14, flexShrink: 0 }}>✓</span>}
                   </div>
                   <p style={{ ...type.caption, color: colors.faint, margin: "4px 0 0" }}>
-                    Updated {new Date(r.updated_at).toLocaleDateString()}
+                    {resumeMetaLine(r)}
                   </p>
                 </div>
-              );
-            })}
+              </div>
+            );
+          })}
+
+          {/* Always available, not just when the list is empty — creating a
+              second or third tailored version is a normal part of the loop. */}
+          <div
+            className="vita-resume-option"
+            onClick={onNavigateToResumes}
+            style={{
+              background: "transparent",
+              borderRadius: 12,
+              padding: "14px 16px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              minHeight: 62,
+              border: `1px dashed ${colors.border}`,
+            }}
+          >
+            <p style={{ ...type.caption, fontWeight: 500, color: colors.indigo, margin: 0 }}>+ Create a resume</p>
           </div>
-        )}
+        </div>
 
         <Button onClick={runScan} disabled={!selectedResumeId} style={{ opacity: selectedResumeId ? 1 : 0.5 }}>
           Analyze my match
@@ -1492,6 +1508,31 @@ function DashEmpty({ icon, title, subtitle, actionLabel, onAction }) {
       </div>
     </div>
   );
+}
+
+// A tiny abstract "document" glyph — not a real content thumbnail (resumes
+// are structured data, not files), but enough visual shorthand that a
+// resume card reads as "a document" at a glance rather than just text.
+function ResumeGlyph() {
+  return (
+    <div style={{ width: 30, height: 30, borderRadius: 6, background: colors.lavenderBg, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ width: 14, display: "flex", flexDirection: "column", gap: 2 }}>
+        <div style={{ height: 2, borderRadius: 1, background: colors.indigoDeep, width: "100%" }} />
+        <div style={{ height: 2, borderRadius: 1, background: colors.indigoDeep, width: "70%" }} />
+        <div style={{ height: 2, borderRadius: 1, background: colors.indigoDeep, width: "85%" }} />
+      </div>
+    </div>
+  );
+}
+
+// Leads with actual usage ("used this a lot recently") when there is any,
+// since that's more meaningful than an edit timestamp — falls back to
+// "Updated" for resumes that have never been scanned yet.
+function resumeMetaLine(r) {
+  if (r.scan_count > 0) {
+    return `${r.scan_count} scan${r.scan_count === 1 ? "" : "s"} · Last used ${formatRelativeTime(r.last_scanned_at)}`;
+  }
+  return `Updated ${new Date(r.updated_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}`;
 }
 
 function Dashboard({ onNavigate }) {
@@ -2485,8 +2526,10 @@ function Resumes() {
               key={r.id}
               className="vita-card"
               onClick={() => editingId !== r.id && openResume(r.id)}
-              style={{ background: "#fff", borderRadius: 12, padding: "14px 16px", cursor: editingId === r.id ? "default" : "pointer" }}
+              style={{ background: "#fff", borderRadius: 12, padding: "14px 16px", cursor: editingId === r.id ? "default" : "pointer", display: "flex", gap: 10, alignItems: "flex-start" }}
             >
+              <ResumeGlyph />
+              <div style={{ minWidth: 0, flex: 1 }}>
               {editingId === r.id ? (
                 <div style={{ marginBottom: 4 }} onClick={(e) => e.stopPropagation()}>
                   <input
@@ -2502,13 +2545,13 @@ function Resumes() {
                   </div>
                 </div>
               ) : (
-                <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, fontWeight: 500, color: colors.ink, margin: "0 0 4px" }}>
+                <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, fontWeight: 500, color: colors.ink, margin: "0 0 4px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                   {r.label}
                 </p>
               )}
 
               <p style={{ fontFamily: "Inter, sans-serif", fontSize: 11, color: colors.faint, margin: "0 0 10px" }}>
-                Updated {new Date(r.updated_at).toLocaleDateString()}
+                {resumeMetaLine(r)}
               </p>
 
               {editingId !== r.id && (
@@ -2525,6 +2568,7 @@ function Resumes() {
                   </div>
                 )
               )}
+              </div>
             </div>
           ))}
         </div>
