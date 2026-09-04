@@ -59,7 +59,7 @@ for each, define:
 
 - [ ] valid emails
 - [ ] easier sign up
-- [ ] parse resume
+- [x] parse resume
 - [x] scan jobs
 - [ ] restructure VITA to be calm productivity app + editorial portfolio + personal career journal
 - [ ] *too much manual data entry*
