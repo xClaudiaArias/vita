@@ -1,6 +1,6 @@
 import express from "express";
 import multer from "multer";
-import pdfParse from "pdf-parse";
+import { PDFParse } from "pdf-parse";
 import mammoth from "mammoth";
 import pool from "../db.js";
 
@@ -82,19 +82,33 @@ router.post("/parse", upload.single("file"), async (req, res) => {
     let rawText = "";
 
     if (req.file) {
-      const mimetype = req.file.mimetype;
-      if (mimetype === "application/pdf") {
-        const parsed = await pdfParse(req.file.buffer);
-        rawText = parsed.text;
-      } else if (mimetype === "application/vnd.openxmlformats-officedocument.wordprocessingml.document") {
-        const parsed = await mammoth.extractRawText({ buffer: req.file.buffer });
-        rawText = parsed.value;
-      } else if (mimetype === "text/plain") {
-        rawText = req.file.buffer.toString("utf-8");
-      } else {
-        return res.status(400).json({ error: "Unsupported file type — please upload a PDF, DOCX, or TXT file." });
-      }
-    } else if (req.body.text) {
+  const mimetype = req.file.mimetype;
+
+  if (mimetype === "application/pdf") {
+    const parser = new PDFParse({ data: req.file.buffer });
+    const parsed = await parser.getText();
+    rawText = parsed.text;
+    await parser.destroy();
+
+  } else if (
+    mimetype ===
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+  ) {
+    const parsed = await mammoth.extractRawText({
+      buffer: req.file.buffer,
+    });
+    rawText = parsed.value;
+
+  } else if (mimetype === "text/plain") {
+    rawText = req.file.buffer.toString("utf-8");
+
+  } else {
+    return res.status(400).json({
+      error:
+        "Unsupported file type — please upload a PDF, DOCX, or TXT file.",
+    });
+  }
+} else if (req.body.text) {
       rawText = req.body.text;
     } else {
       return res.status(400).json({ error: "Provide either a file upload or pasted text." });
