@@ -1597,7 +1597,7 @@ function Dashboard({ onNavigate }) {
   return (
     <div>
       {/* ── Header: greeting, streak, journey stats, weekly goal ── */}
-      <div style={{ background: colors.indigo, borderRadius: 16, padding: "1.5rem", marginBottom: 12 }}>
+      <Card style={{ padding: "1.5rem", marginBottom: 12 }}>
         <div style={{ display: "flex", gap: 14, alignItems: "center", marginBottom: 16, flexWrap: "wrap" }}>
           {data.user.avatar_url ? (
             <img
@@ -1618,31 +1618,31 @@ function Dashboard({ onNavigate }) {
             </div>
           )}
           <div>
-            <p style={{ ...type.display, fontSize: 24, color: colors.cream, margin: "0 0 6px" }}>
+            <p style={{ ...type.display, fontSize: 24, color: colors.indigo, margin: "0 0 6px" }}>
               Good to see you, {firstName}
             </p>
             {data.user.current_streak > 0 ? (
-              <span style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "rgba(242,233,228,0.14)", borderRadius: 20, padding: "3px 10px" }}>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 5, background: colors.terracottaBg, borderRadius: 20, padding: "3px 10px" }}>
                 <span style={{ fontSize: 12 }}>🔥</span>
-                <span style={{ ...type.caption, color: colors.cream }}>{data.user.current_streak}-day streak · you're on a roll</span>
+                <span style={{ ...type.caption, color: colors.terracottaText }}>{data.user.current_streak}-day streak · you're on a roll</span>
               </span>
             ) : (
-              <span style={{ ...type.caption, color: colors.lavender }}>Let's get your streak going</span>
+              <span style={{ ...type.caption, color: colors.muted }}>Let's get your streak going</span>
             )}
           </div>
         </div>
 
         {/* ── Journey stats: typography doing the storytelling, not a chart ── */}
-        <div style={{ display: "flex", gap: 24, marginBottom: 20, paddingBottom: 18, borderBottom: "1px solid rgba(242,233,228,0.14)", flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: 24, marginBottom: 20, paddingBottom: 18, borderBottom: `1px solid ${colors.border}`, flexWrap: "wrap" }}>
           <div>
-            <p style={{ ...type.display, fontSize: 26, color: colors.cream, margin: "0 0 2px" }}>{data.total_applications}</p>
-            <p style={{ ...type.caption, color: colors.lavender, margin: 0 }}>
+            <p style={{ ...type.display, fontSize: 26, color: colors.indigo, margin: "0 0 2px" }}>{data.total_applications}</p>
+            <p style={{ ...type.caption, color: colors.faint, margin: 0 }}>
               application{data.total_applications === 1 ? "" : "s"} sent
             </p>
           </div>
           <div>
-            <p style={{ ...type.display, fontSize: 26, color: colors.cream, margin: "0 0 2px" }}>{data.interviewing_count}</p>
-            <p style={{ ...type.caption, color: colors.lavender, margin: 0 }}>
+            <p style={{ ...type.display, fontSize: 26, color: colors.indigo, margin: "0 0 2px" }}>{data.interviewing_count}</p>
+            <p style={{ ...type.caption, color: colors.faint, margin: 0 }}>
               in progress
             </p>
           </div>
@@ -1651,10 +1651,10 @@ function Dashboard({ onNavigate }) {
         {/* ── Weekly goal: discrete segments so progress reads as "3 of 5 done" at a glance ── */}
         <div className={goalMet ? "vita-goal-met" : ""}>
           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-            <p style={{ ...type.caption, color: colors.cream, margin: 0 }}>
+            <p style={{ ...type.caption, color: colors.muted, margin: 0 }}>
               {goalMet ? "Weekly goal reached! 🎉" : `Weekly goal: ${goal} application${goal === 1 ? "" : "s"}`}
             </p>
-            <p style={{ ...type.caption, fontWeight: 500, color: colors.cream, margin: 0 }}>
+            <p style={{ ...type.caption, fontWeight: 500, color: colors.muted, margin: 0 }}>
               {progress} / {goal}
             </p>
           </div>
@@ -1668,18 +1668,18 @@ function Dashboard({ onNavigate }) {
                     flex: 1,
                     height: 8,
                     borderRadius: 4,
-                    background: i < progress ? (goalMet ? colors.terracotta : colors.lavender) : "rgba(242,233,228,0.18)",
+                    background: i < progress ? (goalMet ? colors.terracotta : colors.lavender) : colors.border,
                   }}
                 />
               ))}
             </div>
           ) : (
-            <div style={{ background: "rgba(242,233,228,0.18)", borderRadius: 20, height: 8, overflow: "hidden" }}>
+            <div style={{ background: colors.border, borderRadius: 20, height: 8, overflow: "hidden" }}>
               <div className="vita-progress-fill" style={{ background: goalMet ? colors.terracotta : colors.lavender, height: "100%", width: `${goalPct}%`, borderRadius: 20 }} />
             </div>
           )}
         </div>
-      </div>
+      </Card>
 
       {/* ── What's next: a thin banner, not another card ── */}
       {nextAction && (
