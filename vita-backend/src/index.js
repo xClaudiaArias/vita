@@ -8,7 +8,6 @@ import resumesRouter from "./routes/resumes.js";
 import jobPostingsRouter from "./routes/jobPostings.js";
 import scansRouter from "./routes/scans.js";
 import applicationsRouter from "./routes/applications.js";
-import projectsRouter from "./routes/projects.js";
 import interviewSessionsRouter from "./routes/interviewSessions.js";
 import dashboardRouter from "./routes/dashboard.js";
 
@@ -18,7 +17,7 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Public — no token needed 
+// Public — no token needed (you don't have one yet when signing up/logging in)
 app.use("/auth", authRouter);
 
 // Everything below this line requires a valid token.
@@ -27,7 +26,6 @@ app.use("/resumes", requireAuth, resumesRouter);
 app.use("/job-postings", requireAuth, jobPostingsRouter);
 app.use("/scans", requireAuth, scansRouter);
 app.use("/applications", requireAuth, applicationsRouter);
-app.use("/projects", requireAuth, projectsRouter);
 app.use("/interview-sessions", requireAuth, interviewSessionsRouter);
 app.use("/dashboard", requireAuth, dashboardRouter);
 
