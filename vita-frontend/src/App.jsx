@@ -346,8 +346,8 @@ function FormField({ label, children }) {
   );
 }
 
-// The title + primary-action row repeated at the top of Tracker,
-// Resumes, and Portfolio — now a single implementation.
+// The title + primary-action row repeated at the top of Tracker
+// and Resumes — now a single implementation.
 function SectionHeader({ title, actionLabel, onAction }) {
   return (
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: space.lg }}>
@@ -360,7 +360,7 @@ function SectionHeader({ title, actionLabel, onAction }) {
 }
 
 // The "Delete this X? Yes / Cancel" inline confirm pattern, previously
-// hand-duplicated in both Resumes and Portfolio.
+// hand-duplicated in both Resumes and (formerly) Portfolio.
 function ConfirmInline({ label, onConfirm, onCancel }) {
   return (
     <div style={{ display: "flex", gap: space.sm, alignItems: "center" }}>
@@ -621,221 +621,6 @@ function Tracker() {
   );
 }
 
-// ── Portfolio view ────────────────────────────────
-function ProjectForm({ initial, onSaved, onCancel }) {
-  const [title, setTitle] = useState(initial?.title || "");
-  const [description, setDescription] = useState(initial?.description || "");
-  const [thumbnailUrl, setThumbnailUrl] = useState(initial?.thumbnail_url || "");
-  const [linkUrl, setLinkUrl] = useState(initial?.link_url || "");
-  const [tagsInput, setTagsInput] = useState((initial?.tags || []).join(", "));
-  const [submitting, setSubmitting] = useState(false);
-  const [errorMsg, setErrorMsg] = useState("");
-
-  const isEditing = !!initial;
-
-  const submit = async () => {
-    setErrorMsg("");
-    if (!title.trim()) {
-      setErrorMsg("Give the project a title.");
-      return;
-    }
-    setSubmitting(true);
-    try {
-      const tags = tagsInput.split(",").map((t) => t.trim()).filter(Boolean);
-      const body = {
-        title: title.trim(),
-        description: description.trim() || null,
-        thumbnail_url: thumbnailUrl.trim() || null,
-        link_url: linkUrl.trim() || null,
-        tags,
-      };
-      if (isEditing) {
-        await apiFetch(`/projects/${initial.id}`, { method: "PATCH", body: JSON.stringify(body) });
-      } else {
-        await apiFetch("/projects", { method: "POST", body: JSON.stringify(body) });
-      }
-      onSaved();
-    } catch (err) {
-      setErrorMsg(err.message);
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  return (
-    <div style={{ background: "#fff", borderRadius: 12, padding: "20px 22px" }}>
-      <p style={{ fontFamily: "Fraunces, serif", fontSize: 18, color: colors.indigo, margin: "0 0 4px" }}>
-        {isEditing ? "Edit project" : "New project"}
-      </p>
-      <p style={{ fontFamily: "Inter, sans-serif", fontSize: 12, color: colors.faint, margin: "0 0 16px" }}>
-        Show off something you're proud of.
-      </p>
-
-      <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Project title" className="vita-field" style={inputStyle} />
-      <textarea
-        value={description}
-        onChange={(e) => setDescription(e.target.value)}
-        placeholder="One or two lines on what it is and the impact it had"
-        rows={3}
-        className="vita-field" style={{ ...inputStyle, resize: "vertical" }}
-      />
-      <input value={thumbnailUrl} onChange={(e) => setThumbnailUrl(e.target.value)} placeholder="Thumbnail image URL (optional)" className="vita-field" style={inputStyle} />
-      <input value={linkUrl} onChange={(e) => setLinkUrl(e.target.value)} placeholder="Link to the project (optional)" className="vita-field" style={inputStyle} />
-      <input value={tagsInput} onChange={(e) => setTagsInput(e.target.value)} placeholder="Tags, comma separated — e.g. Figma, Systems" className="vita-field" style={inputStyle} />
-
-      {errorMsg && (
-        <p style={{ fontFamily: "Inter, sans-serif", fontSize: 12, color: colors.terracottaText, margin: "0 0 10px" }}>
-          {errorMsg}
-        </p>
-      )}
-
-      <div style={{ display: "flex", gap: 8 }}>
-        <button
-          className="vita-btn"
-          onClick={submit}
-          disabled={submitting}
-          style={{ background: colors.indigo, color: colors.cream, border: "none", borderRadius: 10, padding: "10px 20px", fontFamily: "Inter, sans-serif", fontSize: 13, fontWeight: 500, cursor: "pointer", opacity: submitting ? 0.6 : 1 }}
-        >
-          {submitting ? "Saving…" : isEditing ? "Save changes" : "Add project"}
-        </button>
-        <button
-          onClick={onCancel}
-          style={{ background: "transparent", border: "none", padding: "10px 12px", fontFamily: "Inter, sans-serif", fontSize: 13, color: colors.faint, cursor: "pointer" }}
-        >
-          Cancel
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function Portfolio() {
-  const [projects, setProjects] = useState([]);
-  const [status, setStatus] = useState("idle");
-  const [errorMsg, setErrorMsg] = useState("");
-  const [formMode, setFormMode] = useState(null); // null | "create" | project object being edited
-  const [confirmDeleteId, setConfirmDeleteId] = useState(null);
-
-  const load = useCallback(async () => {
-    setStatus("loading");
-    try {
-      const data = await apiFetch("/projects");
-      setProjects(data);
-      setStatus("ready");
-    } catch (err) {
-      setErrorMsg(err.message);
-      setStatus("error");
-    }
-  }, []);
-
-  useEffect(() => {
-    load();
-  }, [load]);
-
-  const deleteProject = async (id) => {
-    try {
-      await apiFetch(`/projects/${id}`, { method: "DELETE" });
-      setConfirmDeleteId(null);
-      load();
-    } catch (err) {
-      setErrorMsg(err.message);
-    }
-  };
-
-  if (formMode === "create") {
-    return <ProjectForm onSaved={() => { setFormMode(null); load(); }} onCancel={() => setFormMode(null)} />;
-  }
-  if (formMode && formMode !== "create") {
-    return <ProjectForm initial={formMode} onSaved={() => { setFormMode(null); load(); }} onCancel={() => setFormMode(null)} />;
-  }
-
-  if (status === "loading" || status === "idle") {
-    return <EmptyState title="Loading your projects…" subtitle="Just a moment." />;
-  }
-  if (status === "error") {
-    return (
-      <EmptyState
-        title="Couldn't reach the server"
-        subtitle={`Make sure your backend is running on localhost:4000. (${errorMsg})`}
-      />
-    );
-  }
-
-  return (
-    <div>
-      <SectionHeader title="Your portfolio" actionLabel="+ New project" onAction={() => setFormMode("create")} />
-
-      {projects.length === 0 ? (
-        <EmptyState title="No projects yet" subtitle="Add a project to start building your portfolio." />
-      ) : (
-        <div className="vita-grid">
-          {projects.map((p) => (
-            <Card key={p.id} style={{ overflow: "hidden" }}>
-              <div
-                style={{
-                  height: 90,
-                  background: p.thumbnail_url ? `center / cover no-repeat url(${p.thumbnail_url})` : colors.lavender,
-                }}
-              />
-              <div style={{ padding: "12px 14px" }}>
-                <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, fontWeight: 500, color: colors.ink, margin: "0 0 4px" }}>
-                  {p.title}
-                </p>
-                {p.description && (
-                  <p style={{ fontFamily: "Inter, sans-serif", fontSize: 11, color: colors.faint, margin: "0 0 8px" }}>
-                    {p.description}
-                  </p>
-                )}
-                <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
-                  {(p.tags || []).map((tag) => (
-                    <span
-                      key={tag}
-                      style={{
-                        background: "#EEEDE5",
-                        color: colors.muted,
-                        fontSize: 10,
-                        padding: "3px 8px",
-                        borderRadius: 20,
-                        fontFamily: "Inter, sans-serif",
-                      }}
-                    >
-                      {tag}
-                    </span>
-                  ))}
-                </div>
-
-                {p.link_url && (
-                  <a
-                    href={p.link_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="vita-text-link"
-                    style={{ display: "block", fontFamily: "Inter, sans-serif", fontSize: 11, color: colors.indigo, marginBottom: 8, textDecoration: "none" }}
-                  >
-                    View project →
-                  </a>
-                )}
-
-                {confirmDeleteId === p.id ? (
-                  <ConfirmInline
-                    label="Delete this project?"
-                    onConfirm={() => deleteProject(p.id)}
-                    onCancel={() => setConfirmDeleteId(null)}
-                  />
-                ) : (
-                  <div style={{ display: "flex", gap: 10 }}>
-                    <TextLink onClick={() => setFormMode(p)}>Edit</TextLink>
-                    <TextLink tone="muted" onClick={() => setConfirmDeleteId(p.id)}>Delete</TextLink>
-                  </div>
-                )}
-              </div>
-            </Card>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
 
 // ── Resume Scanner view ───────────────────────────
 function Scanner({ onNavigateToResumes }) {
@@ -2600,11 +2385,6 @@ const features = [
     title: "Interview Prep",
     description: "Practice real questions with a coach that leads with what worked, then offers one specific way to improve — never a wall of criticism.",
   },
-  {
-    icon: "✨",
-    title: "Portfolio",
-    description: "A shareable profile that showcases your projects and story, ready to send alongside any application.",
-  },
 ];
 
 function LandingPage({ onGetStarted, onLogin }) {
@@ -2895,8 +2675,7 @@ function Settings({ user, onUpdated }) {
 // to reveal their pages.
 // Nav order follows VITA's actual loop, not an arbitrary category split:
 // Resumes (raw material) → Scanner (find/scan/tailor/apply — the hinge
-// the whole loop turns on) → Tracker (track it) → Interview Prep (get
-// ready) → Portfolio (present yourself, ongoing alongside the loop).
+// the whole loop turns on) → Tracker (track it) → Interview Prep (get ready).
 // Scanner gets a distinct visual mark (a small dot, not a different
 // shape) rather than being folded into either "Prepare" or "Apply" —
 // it genuinely belongs to both.
@@ -2905,7 +2684,6 @@ const navItems = [
   { key: "scanner", label: "Scanner", isAnchor: true },
   { key: "tracker", label: "Tracker" },
   { key: "chat", label: "Interview Prep" },
-  { key: "portfolio", label: "Portfolio" },
 ];
 
 export default function VitaApp() {
@@ -3041,7 +2819,6 @@ export default function VitaApp() {
           {tab === "scanner" && <Scanner onNavigateToResumes={() => setTab("resumes")} />}
           {tab === "tracker" && <Tracker />}
           {tab === "chat" && <InterviewChat />}
-          {tab === "portfolio" && <Portfolio />}
           {tab === "settings" && <Settings user={user} onUpdated={setUser} />}
         </div>
       </div>
