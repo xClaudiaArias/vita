@@ -1,7 +1,3 @@
-#!/bin/bash
-# Seeds the vita database with test data: a user, a resume, a job posting,
-# and an application linking them together. Run from inside vita-backend/.
-
 set -e
 
 echo "Creating test user..."
