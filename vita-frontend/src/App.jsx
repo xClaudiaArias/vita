@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
 
-// ── VITA brand tokens ─────────────────────────────
 const colors = {
   cream: "#F2E9E4",
   indigo: "#0F0080",
@@ -16,10 +15,6 @@ const colors = {
   border: "#E4DCD5",
 };
 
-// ── Design system: spacing & typography scales ────
-// A shared scale means every gap/padding/margin pulls from the same
-// set of values instead of one-off numbers, which is what gives a UI
-// visual rhythm instead of feeling arbitrary.
 const space = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32, xxxl: 48 };
 
 const type = {
@@ -32,14 +27,8 @@ const type = {
   caption: { fontFamily: "Inter, sans-serif", fontWeight: 400, fontSize: 11, lineHeight: 1.5 },
 };
 
-// Content width system — constrains the reading/working area on wide
-// viewports instead of letting cards and text stretch edge to edge.
 const contentMaxWidth = 880;
 
-// ── Shared motion styles ───────────────────────────
-// Inline styles can't do hover states or keyframes, so this small
-// stylesheet gets injected once per top-level screen (via <style>)
-// and applied through className alongside the existing inline styles.
 const globalStyles = `
   @keyframes vitaFadeIn {
     from { opacity: 0; transform: translateY(6px); }
@@ -134,16 +123,12 @@ const globalStyles = `
     border: 1px solid #E4DCD5;
   }
 
-  /* Responsive grids — auto-fit so multi-column layouts reflow on
-     narrow viewports instead of staying locked at a fixed column count. */
   .vita-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
     gap: 12px;
   }
 
-  /* Scanner-specific motion — only where it reinforces a real state
-     change (job recognized, resume selected, scan in progress). */
   @keyframes vitaBreathe {
     0%, 100% { opacity: 0.55; }
     50% { opacity: 1; }
@@ -162,9 +147,6 @@ const globalStyles = `
     transform: translateY(-1px);
   }
 
-  /* Dashboard's two-column layout — a real breakpoint rather than
-     flex-wrap guesswork, so the columns only split once there's
-     genuinely enough width for both to breathe. */
   .vita-dashboard-grid {
     display: grid;
     grid-template-columns: 1fr;
@@ -177,9 +159,6 @@ const globalStyles = `
     }
   }
 
-  /* Flat list rows (Coming up, Recent activity) — divider lines
-     instead of nested cards, since these are informational lists,
-     not individually actionable content. */
   .vita-list-row {
     padding: 10px 0;
     border-bottom: 1px solid #E4DCD5;
@@ -198,17 +177,12 @@ const statusStyles = {
 
 const API_BASE = "http://localhost:4000";
 
-// Reads the saved token and calls the API with it attached automatically,
-// so individual components never have to think about auth headers.
-// Throws on any non-2xx response so callers can catch() a single error path.
 async function apiFetch(path, options = {}) {
   const token = localStorage.getItem("vita_token");
   const isFormData = options.body instanceof FormData;
   const res = await fetch(`${API_BASE}${path}`, {
     ...options,
     headers: {
-      // FormData sets its own Content-Type (with the multipart boundary) —
-      // setting it manually here would break file uploads.
       ...(isFormData ? {} : { "Content-Type": "application/json" }),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(options.headers || {}),
@@ -221,7 +195,6 @@ async function apiFetch(path, options = {}) {
   return data;
 }
 
-// ── Small building blocks ─────────────────────────
 function Pill({ bg, color, children }) {
   return (
     <span
@@ -260,11 +233,6 @@ function EmptyState({ title, subtitle }) {
     </div>
   );
 }
-
-// ── Design system: reusable primitives ────────────
-// A small, consistent set of building blocks so spacing, type, and
-// interaction states don't have to be re-invented (and inevitably drift)
-// every time a new screen needs a button, a form field, or a card.
 
 function Button({ variant = "primary", size = "md", children, style, className = "", ...props }) {
   const sizePadding = size === "sm" ? "6px 14px" : "10px 20px";
@@ -310,10 +278,6 @@ function Button({ variant = "primary", size = "md", children, style, className =
   );
 }
 
-// A small clickable text action (Rename, Delete, Edit, View project…).
-// Distinct from Button's ghost variant in that it's an inline <span>,
-// matching how these are used inline within cards rather than as
-// standalone controls.
 function TextLink({ tone = "default", children, style, ...props }) {
   const toneColor = { default: colors.indigo, muted: colors.faint, destructive: colors.terracottaText }[tone];
   return (
@@ -333,8 +297,6 @@ function TextLink({ tone = "default", children, style, ...props }) {
   );
 }
 
-// Label + control pairing for forms, so every field gets a consistent
-// label style and spacing without repeating it by hand each time.
 function FormField({ label, children }) {
   return (
     <div style={{ marginBottom: space.md }}>
@@ -346,8 +308,6 @@ function FormField({ label, children }) {
   );
 }
 
-// The title + primary-action row repeated at the top of Tracker
-// and Resumes — now a single implementation.
 function SectionHeader({ title, actionLabel, onAction }) {
   return (
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: space.lg }}>
@@ -359,8 +319,6 @@ function SectionHeader({ title, actionLabel, onAction }) {
   );
 }
 
-// The "Delete this X? Yes / Cancel" inline confirm pattern, previously
-// hand-duplicated in both Resumes and (formerly) Portfolio.
 function ConfirmInline({ label, onConfirm, onCancel }) {
   return (
     <div style={{ display: "flex", gap: space.sm, alignItems: "center" }}>
@@ -371,9 +329,6 @@ function ConfirmInline({ label, onConfirm, onCancel }) {
   );
 }
 
-// A raised, actionable content card (resume cards, project cards,
-// dashboard panels) vs. a flat "surface" container (forms, list
-// wrappers) — see the .vita-card / .vita-surface CSS for the tiers.
 function Card({ elevation = "raised", children, style, className = "", ...props }) {
   return (
     <div
@@ -386,13 +341,10 @@ function Card({ elevation = "raised", children, style, className = "", ...props 
   );
 }
 
-// Auto-fit responsive grid — replaces fixed "1fr 1fr" columns that
-// don't reflow gracefully on narrow viewports.
 function Grid({ children, style }) {
   return <div className="vita-grid" style={style}>{children}</div>;
 }
 
-// ── Tracker view ──────────────────────────────────
 function CreateApplicationForm({ onCreated, onCancel }) {
   const [company, setCompany] = useState("");
   const [roleTitle, setRoleTitle] = useState("");
@@ -650,20 +602,11 @@ function Scanner({ onNavigateToResumes }) {
     apiFetch("/resumes").then(setResumes).catch(() => {});
   }, []);
 
-  // URL is a persistent, optional field now — no more "paste it, get told
-  // to clear it and paste text instead" dance. Continue only requires the
-  // description, since that's the only thing VITA can actually read;
-  // whatever's in the URL field (if anything) rides along as source_url.
   const handleCaptureContinue = async () => {
     const trimmedDescription = description.trim();
     if (!trimmedDescription) return;
     setStep("recognize");
 
-    // Try to fill in company/role automatically from the text the person
-    // just pasted, rather than handing them two blank fields to type into.
-    // If this fails for any reason (offline, no AI credits, ambiguous
-    // text), we just fall back to blank editable fields — the flow never
-    // gets blocked by an extraction failure.
     setRecognizing(true);
     setRecognizeError("");
     try {
@@ -703,8 +646,6 @@ function Scanner({ onNavigateToResumes }) {
     }
   };
 
-  // editedText is optional — when provided (from the inline "Edit" flow),
-  // the backend applies that wording instead of its own suggested_text.
   const handleSuggestion = async (suggestionId, action, editedText) => {
     const body = editedText ? { action, edited_text: editedText } : { action };
     const result = await apiFetch(`/scans/suggestions/${suggestionId}`, {
@@ -747,7 +688,6 @@ function Scanner({ onNavigateToResumes }) {
     loadResume(selectedResumeId);
   };
 
-  // ── Step 1: Capture — the job posting itself is the primary interaction ──
   if (step === "capture") {
     return (
       <Card elevation="surface" style={{ padding: "24px 26px" }}>
@@ -793,7 +733,6 @@ function Scanner({ onNavigateToResumes }) {
     );
   }
 
-  // ── Step 2: Recognition — VITA fills this in automatically where it can ──
   if (step === "recognize") {
     return (
       <Card elevation="surface" style={{ padding: "24px 26px" }}>
@@ -830,7 +769,6 @@ function Scanner({ onNavigateToResumes }) {
     );
   }
 
-  // ── Step 3: Resume selection — visual cards instead of a <select> ──
   if (step === "resume") {
     return (
       <div>
@@ -874,8 +812,6 @@ function Scanner({ onNavigateToResumes }) {
             );
           })}
 
-          {/* Always available, not just when the list is empty — creating a
-              second or third tailored version is a normal part of the loop. */}
           <div
             className="vita-resume-option"
             onClick={onNavigateToResumes}
@@ -901,7 +837,6 @@ function Scanner({ onNavigateToResumes }) {
     );
   }
 
-  // ── Scanning — a calm holding state, not a spinner ──
   if (step === "scanning") {
     return (
       <Card elevation="surface" style={{ padding: "36px 26px", textAlign: "center" }}>
@@ -915,7 +850,6 @@ function Scanner({ onNavigateToResumes }) {
     );
   }
 
-  // ── Error step (e.g. AI credits not available) ──
   if (step === "error") {
     return (
       <Card elevation="surface" style={{ padding: "20px 22px" }}>
@@ -930,7 +864,6 @@ function Scanner({ onNavigateToResumes }) {
     );
   }
 
-  // ── Confirmation step ──
   if (step === "confirmation") {
     return (
       <ScannerConfirmation
@@ -947,7 +880,6 @@ function Scanner({ onNavigateToResumes }) {
     );
   }
 
-  // ── Editor step ──
   if (step === "editor") {
     return (
       <ResumeEditor
@@ -964,7 +896,6 @@ function Scanner({ onNavigateToResumes }) {
     );
   }
 
-  // ── Results step — lead with the encouraging read before the number ──
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: space.lg }}>
@@ -1241,11 +1172,6 @@ const inputStyle = {
   display: "block",
 };
 
-// ── Dashboard view ─────────────────────────────────
-// Small time-formatting helpers, used only by the Dashboard's Coming Up
-// and Recent Activity sections — turning raw dates into the kind of
-// relative language that makes a list feel like "momentum" rather than
-// a raw timestamp dump.
 function formatDaysAway(dateStr) {
   const now = new Date();
   const target = new Date(dateStr);
@@ -1295,9 +1221,6 @@ function DashEmpty({ icon, title, subtitle, actionLabel, onAction }) {
   );
 }
 
-// A tiny abstract "document" glyph — not a real content thumbnail (resumes
-// are structured data, not files), but enough visual shorthand that a
-// resume card reads as "a document" at a glance rather than just text.
 function ResumeGlyph() {
   return (
     <div style={{ width: 30, height: 30, borderRadius: 6, background: colors.lavenderBg, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -1310,9 +1233,6 @@ function ResumeGlyph() {
   );
 }
 
-// Leads with actual usage ("used this a lot recently") when there is any,
-// since that's more meaningful than an edit timestamp — falls back to
-// "Updated" for resumes that have never been scanned yet.
 function resumeMetaLine(r) {
   if (r.scan_count > 0) {
     return `${r.scan_count} scan${r.scan_count === 1 ? "" : "s"} · Last used ${formatRelativeTime(r.last_scanned_at)}`;
@@ -1357,12 +1277,6 @@ function Dashboard({ onNavigate }) {
   const goalMet = goalPct >= 100;
   const useSegments = goal <= 10; // beyond that, discrete segments get too thin to read
 
-  // A single, quiet "what's next" line — derived entirely from data we
-  // already have, never a fabricated suggestion. Priority order: an
-  // imminent interview outranks everything else, then goal progress,
-  // then unexplored matches. If none of these apply, nothing is shown —
-  // manufacturing a nudge when there's genuinely nothing to say would
-  // undercut the ones that matter.
   const nextInterview = data.upcoming.find((u) => u.type === "interview");
   let nextAction = null;
   if (nextInterview) {
@@ -1381,7 +1295,6 @@ function Dashboard({ onNavigate }) {
 
   return (
     <div>
-      {/* ── Header: greeting, streak, journey stats, weekly goal ── */}
       <Card style={{ padding: "1.5rem", marginBottom: 12 }}>
         <div style={{ display: "flex", gap: 14, alignItems: "center", marginBottom: 16, flexWrap: "wrap" }}>
           {data.user.avatar_url ? (
@@ -1417,7 +1330,6 @@ function Dashboard({ onNavigate }) {
           </div>
         </div>
 
-        {/* ── Journey stats: typography doing the storytelling, not a chart ── */}
         <div style={{ display: "flex", gap: 24, marginBottom: 20, paddingBottom: 18, borderBottom: `1px solid ${colors.border}`, flexWrap: "wrap" }}>
           <div>
             <p style={{ ...type.display, fontSize: 26, color: colors.indigo, margin: "0 0 2px" }}>{data.total_applications}</p>
@@ -1433,7 +1345,6 @@ function Dashboard({ onNavigate }) {
           </div>
         </div>
 
-        {/* ── Weekly goal: discrete segments so progress reads as "3 of 5 done" at a glance ── */}
         <div className={goalMet ? "vita-goal-met" : ""}>
           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
             <p style={{ ...type.caption, color: colors.muted, margin: 0 }}>
@@ -1466,7 +1377,7 @@ function Dashboard({ onNavigate }) {
         </div>
       </Card>
 
-      {/* ── What's next: a thin banner, not another card ── */}
+      
       {nextAction && (
         <div className="vita-fade-in" style={{ background: colors.terracottaBg, borderRadius: 10, padding: "10px 16px", marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}>
           <span style={{ fontSize: 14 }}>💡</span>
@@ -1474,10 +1385,10 @@ function Dashboard({ onNavigate }) {
         </div>
       )}
 
-      {/* ── Two-column body: real breakpoint, not flex-wrap ── */}
+
       <div className="vita-dashboard-grid">
         <div>
-          {/* Coming up — flat list, relative urgency as the primary label */}
+        
           <div style={{ marginBottom: 20 }}>
             <p style={{ ...type.label, color: colors.indigo, margin: "0 0 8px" }}>Coming up</p>
             {data.upcoming.length === 0 ? (
@@ -1502,7 +1413,7 @@ function Dashboard({ onNavigate }) {
             )}
           </div>
 
-          {/* Recent activity — relative time turns this into a momentum stream, not a raw log */}
+          
           <div>
             <p style={{ ...type.label, color: colors.muted, margin: "0 0 8px" }}>Recent activity</p>
             {data.recent_activity.length === 0 ? (
@@ -1536,7 +1447,6 @@ function Dashboard({ onNavigate }) {
           </div>
         </div>
 
-        {/* New matches — the one section that gets raised-card treatment, since these are the most actionable/inviting items on the page */}
         <div>
           <p style={{ ...type.label, color: colors.indigo, margin: "0 0 8px" }}>New matches</p>
           {data.new_matches.length === 0 ? (
@@ -1576,7 +1486,6 @@ function Dashboard({ onNavigate }) {
   );
 }
 
-// ── Interview Chatbot view ────────────────────────
 function InterviewChat() {
   const [applications, setApplications] = useState([]);
   const [selectedAppId, setSelectedAppId] = useState("");
@@ -1610,8 +1519,6 @@ function InterviewChat() {
     setInput("");
     setErrorMsg("");
 
-    // Show the user's message right away, before the server confirms —
-    // makes the chat feel responsive instead of waiting on a round trip.
     setMessages((prev) => [...prev, { sender: "user", content: text, id: `pending-${Date.now()}` }]);
     setSending(true);
 
@@ -1628,7 +1535,6 @@ function InterviewChat() {
     }
   };
 
-  // ── Pre-session setup ──
   if (!sessionId) {
     const selectedApp = applications.find((a) => a.id === selectedAppId);
     return (
@@ -1663,7 +1569,6 @@ function InterviewChat() {
     );
   }
 
-  // ── Chat view ──
   return (
     <div style={{ background: colors.cream, borderRadius: 12, padding: "1.25rem" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
@@ -2692,6 +2597,25 @@ export default function VitaApp() {
   const [checkingAuth, setCheckingAuth] = useState(true);
   const [authView, setAuthView] = useState("landing"); // landing | login | signup
 
+  // After signing in (fresh login/signup, or an auto-restored session),
+  // send someone with zero resumes straight to Resumes instead of the
+  // Dashboard — landing on a completely empty Dashboard is a bad first
+  // impression, and the Scanner (the hero feature) can't be used at all
+  // without a resume yet anyway. This only affects where you land right
+  // after authenticating, not ongoing navigation.
+  const routeAfterAuth = async (userData) => {
+    setUser(userData);
+    try {
+      const existingResumes = await apiFetch("/resumes");
+      if (!existingResumes || existingResumes.length === 0) {
+        setTab("resumes");
+      }
+    } catch {
+      // If this check fails for any reason, just fall back to the normal
+      // default (Dashboard) rather than blocking sign-in over it.
+    }
+  };
+
   // On load, check if a saved token still works — keeps you logged in
   // across page refreshes instead of forcing a fresh login every time.
   useEffect(() => {
@@ -2701,7 +2625,7 @@ export default function VitaApp() {
       return;
     }
     apiFetch("/auth/me")
-      .then(setUser)
+      .then(routeAfterAuth)
       .catch(() => localStorage.removeItem("vita_token"))
       .finally(() => setCheckingAuth(false));
   }, []);
@@ -2731,7 +2655,7 @@ export default function VitaApp() {
     return (
       <AuthScreen
         initialMode={authView}
-        onAuthenticated={setUser}
+        onAuthenticated={routeAfterAuth}
         onBack={() => setAuthView("landing")}
       />
     );
