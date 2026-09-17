@@ -3,11 +3,6 @@ import pool from "../db.js";
 
 const router = express.Router();
 
-// ─────────────────────────────────────────
-// Small helper: fetch a resume with sections + bullets nested.
-// Same logic as GET /resumes/:id — pulled out here so the scan
-// route can reuse it without duplicating the query.
-// ─────────────────────────────────────────
 async function getResumeWithSections(resumeId) {
   const rowsResult = await pool.query(
     `SELECT s.id AS section_id, s.type AS section_type,
@@ -34,12 +29,6 @@ async function getResumeWithSections(resumeId) {
   return sectionsMap;
 }
 
-// ─────────────────────────────────────────
-// POST /scans
-// Body: { "resume_id": "uuid", "job_posting_id": "uuid" }
-// Compares the resume to the job posting via the Anthropic API,
-// stores the scan + suggestions, and returns them.
-// ─────────────────────────────────────────
 router.post("/", async (req, res) => {
   const { resume_id, job_posting_id } = req.body;
 
@@ -50,9 +39,6 @@ router.post("/", async (req, res) => {
   }
 
   try {
-    // Confirm this resume actually belongs to the logged-in user before
-    // scanning it — otherwise a valid token would let someone scan
-    // (and read the contents of) anyone else's resume by guessing an ID.
     const ownerCheck = await pool.query(
       "SELECT id FROM resumes WHERE id = $1 AND user_id = $2",
       [resume_id, req.userId]
@@ -61,7 +47,6 @@ router.post("/", async (req, res) => {
       return res.status(404).json({ error: "Resume not found" });
     }
 
-    // 1. Load the resume content and the job posting text
     const sectionsMap = await getResumeWithSections(resume_id);
     const jobResult = await pool.query(
       "SELECT raw_description, company, role_title FROM job_postings WHERE id = $1",
@@ -80,9 +65,7 @@ router.post("/", async (req, res) => {
       )
       .join("\n\n");
 
-    // 2. Ask Claude to compare them and return structured JSON.
-    // We're explicit that it must return ONLY JSON, nothing else,
-    // so we can parse the response directly.
+
     const prompt = `You are comparing a resume against a job posting to help the candidate tailor their resume.
 
 JOB POSTING (${job.company} — ${job.role_title}):
@@ -139,7 +122,6 @@ Keep suggestions to 2-4 of the highest-impact changes. Be encouraging and specif
       throw new Error("Could not parse AI response as JSON: " + rawText.slice(0, 200));
     }
 
-    // 3. Store the scan and its suggestions in a transaction
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
@@ -181,15 +163,6 @@ Keep suggestions to 2-4 of the highest-impact changes. Be encouraging and specif
   }
 });
 
-// ─────────────────────────────────────────
-// PATCH /scans/suggestions/:suggestionId
-// Body: { "action": "accept" | "skip", "edited_text"?: string }
-// On accept: applies suggestion.suggested_text by default, or the
-// caller's edited_text if provided (e.g. the person tweaked the wording
-// before accepting it). If it targets an existing bullet, updates its
-// content and records why it changed. If it's a brand new bullet
-// (bullet_id was null), inserts a new bullet into the right section.
-// ─────────────────────────────────────────
 router.patch("/suggestions/:suggestionId", async (req, res) => {
   const { suggestionId } = req.params;
   const { action, edited_text } = req.body;
@@ -239,7 +212,6 @@ router.patch("/suggestions/:suggestionId", async (req, res) => {
         [appliedText, suggestion.reason, suggestion.bullet_id]
       );
     } else {
-      // Brand new bullet — find the resume via the scan, then the right section
       const scanResult = await client.query(
         "SELECT resume_id FROM scans WHERE id = $1",
         [suggestion.scan_id]
@@ -253,7 +225,6 @@ router.patch("/suggestions/:suggestionId", async (req, res) => {
 
       let sectionId;
       if (sectionResult.rows.length === 0) {
-        // Section doesn't exist yet on this resume — create it
         const newSection = await client.query(
           "INSERT INTO resume_sections (resume_id, type) VALUES ($1, $2) RETURNING id",
           [resumeId, suggestion.section_type]

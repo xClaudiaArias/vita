@@ -17,11 +17,8 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Public — no token needed (you don't have one yet when signing up/logging in)
 app.use("/auth", authRouter);
 
-// Everything below this line requires a valid token.
-// requireAuth runs first, attaches req.userId, then the route handles the request.
 app.use("/resumes", requireAuth, resumesRouter);
 app.use("/job-postings", requireAuth, jobPostingsRouter);
 app.use("/scans", requireAuth, scansRouter);
@@ -29,12 +26,10 @@ app.use("/applications", requireAuth, applicationsRouter);
 app.use("/interview-sessions", requireAuth, interviewSessionsRouter);
 app.use("/dashboard", requireAuth, dashboardRouter);
 
-// Simple check that the server itself is up
 app.get("/health", (req, res) => {
   res.json({ status: "ok" });
 });
 
-// Confirms the server can actually reach Postgres
 app.get("/health/db", async (req, res) => {
   try {
     const result = await pool.query("SELECT NOW()");
