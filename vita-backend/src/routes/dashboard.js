@@ -3,34 +3,24 @@ import pool from "../db.js";
 
 const router = express.Router();
 
-// ─────────────────────────────────────────
-// GET /dashboard?user_id=uuid
-// Aggregates data from users, applications, job_postings, and resumes
-// into the exact shape the dashboard screen needs. Runs several
-// independent queries in parallel (Promise.all) rather than one at a
-// time, since none of them depend on each other's results.
-// ─────────────────────────────────────────
+
 router.get("/", async (req, res) => {
   const user_id = req.userId;
 
   try {
     const [userResult, weeklyResult, upcomingResult, matchesResult, activityResult, totalResult, interviewingResult] =
       await Promise.all([
-        // Basic profile + streak/goal settings
         pool.query(
           "SELECT name, avatar_url, current_streak, weekly_goal FROM users WHERE id = $1",
           [user_id]
         ),
 
-        // How many applications were submitted since the start of this week
         pool.query(
           `SELECT COUNT(*)::int AS count FROM applications
            WHERE user_id = $1 AND applied_at >= date_trunc('week', now())`,
           [user_id]
         ),
 
-        // Interviews and deadlines coming up, combined and sorted by soonest.
-        // UNION ALL merges two similarly-shaped queries into one result set.
         pool.query(
           `SELECT 'interview' AS type, jp.company, jp.role_title, a.interview_at AS date
              FROM applications a JOIN job_postings jp ON jp.id = a.job_posting_id

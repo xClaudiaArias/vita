@@ -61,8 +61,6 @@ router.post("/:id/messages", async (req, res) => {
       return res.status(404).json({ error: "Session not found" });
     }
 
-    // Load prior messages so Claude has the full conversation for context —
-    // without this, every reply would ignore everything said before it.
     const historyResult = await pool.query(
       "SELECT sender, content FROM interview_messages WHERE session_id = $1 ORDER BY created_at",
       [id]

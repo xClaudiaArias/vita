@@ -6,16 +6,9 @@ import pool from "../db.js";
 const router = express.Router();
 
 function generateToken(userId) {
-  // Signs a token containing the user's ID, valid for 7 days.
-  // Anyone holding this token can prove "I am this user" without
-  // sending a password on every request.
   return jwt.sign({ userId }, process.env.JWT_SECRET, { expiresIn: "7d" });
 }
 
-// ─────────────────────────────────────────
-// POST /auth/signup
-// Body: { "email", "password", "name" }
-// ─────────────────────────────────────────
 router.post("/signup", async (req, res) => {
   const { email, password, name } = req.body;
 
@@ -32,10 +25,6 @@ router.post("/signup", async (req, res) => {
       return res.status(409).json({ error: "An account with this email already exists" });
     }
 
-    // Never store the raw password — bcrypt "hashes" it into something
-    // one-way (can't be reversed back into the original password), with
-    // a random "salt" baked in so two people with the same password
-    // don't end up with the same stored hash.
     const passwordHash = await bcrypt.hash(password, 10);
 
     const result = await pool.query(
@@ -53,10 +42,6 @@ router.post("/signup", async (req, res) => {
   }
 });
 
-// ─────────────────────────────────────────
-// POST /auth/login
-// Body: { "email", "password" }
-// ─────────────────────────────────────────
 router.post("/login", async (req, res) => {
   const { email, password } = req.body;
 
@@ -70,9 +55,6 @@ router.post("/login", async (req, res) => {
       [email]
     );
 
-    // Deliberately vague error message on both "no such email" and "wrong
-    // password" — telling an attacker which one was wrong makes it easier
-    // for them to guess valid emails on your platform.
     if (result.rows.length === 0) {
       return res.status(401).json({ error: "Invalid email or password" });
     }
@@ -95,11 +77,6 @@ router.post("/login", async (req, res) => {
   }
 });
 
-// ─────────────────────────────────────────
-// GET /auth/me
-// Returns the current user's info based on their token.
-// Useful for the frontend to check "am I still logged in?" on page load.
-// ─────────────────────────────────────────
 router.get("/me", async (req, res) => {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
@@ -121,13 +98,6 @@ router.get("/me", async (req, res) => {
   }
 });
 
-// ─────────────────────────────────────────
-// PATCH /auth/me
-// Updates the logged-in user's own settings: name, weekly goal, avatar.
-// Requires a valid token, same as any protected route — but since this
-// router is mounted publicly (before requireAuth in index.js), we verify
-// the token manually here rather than relying on that middleware.
-// ─────────────────────────────────────────
 router.patch("/me", async (req, res) => {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
