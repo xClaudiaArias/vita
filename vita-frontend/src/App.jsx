@@ -1641,7 +1641,6 @@ function InterviewChat() {
   );
 }
 
-// ── Auth screen (login / signup) ──────────────────
 function AuthScreen({ onAuthenticated, initialMode = "login", onBack }) {
   const [mode, setMode] = useState(initialMode);
   const [email, setEmail] = useState("");
@@ -1728,18 +1727,14 @@ function AuthScreen({ onAuthenticated, initialMode = "login", onBack }) {
   );
 }
 
-// ── Resumes view (list + create) ──────────────────
 const SECTION_TYPES = ["summary", "experience", "skills", "education"];
 
-// Paste raw resume text or upload a PDF/DOCX/TXT file — VITA reads it
-// and structures it into sections/bullets automatically, rather than
-// making the person rebuild their resume by hand line by line.
 function ParseResumeForm({ onCreated, onCancel }) {
   const [label, setLabel] = useState("");
-  const [mode, setMode] = useState("paste"); // paste | upload
+  const [mode, setMode] = useState("paste"); 
   const [pastedText, setPastedText] = useState("");
   const [file, setFile] = useState(null);
-  const [status, setStatus] = useState("idle"); // idle | parsing | error
+  const [status, setStatus] = useState("idle"); 
   const [errorMsg, setErrorMsg] = useState("");
 
   const submit = async () => {
@@ -2044,7 +2039,7 @@ function Resumes() {
   const [resumes, setResumes] = useState([]);
   const [status, setStatus] = useState("idle");
   const [errorMsg, setErrorMsg] = useState("");
-  const [formMode, setFormMode] = useState(null); // null | "choose" | "manual" | "parse"
+  const [formMode, setFormMode] = useState(null); 
   const [editingId, setEditingId] = useState(null);
   const [draftLabel, setDraftLabel] = useState("");
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
@@ -2268,7 +2263,6 @@ function Resumes() {
   );
 }
 
-// ── Landing page ───────────────────────────────────
 const features = [
   {
     icon: "📝",
@@ -2488,7 +2482,6 @@ function LandingPage({ onGetStarted, onLogin }) {
   );
 }
 
-// ── Settings view ──────────────────────────────────
 function Settings({ user, onUpdated }) {
   const [name, setName] = useState(user.name || "");
   const [weeklyGoal, setWeeklyGoal] = useState(user.weekly_goal || 5);
@@ -2573,17 +2566,6 @@ function Settings({ user, onUpdated }) {
   );
 }
 
-// ── App shell ──────────────────────────────────────
-// Nav structure: VITA (the wordmark) is Home. Everything else falls under
-// one of three mission categories, matching "Prepare → Apply → Present" —
-// categories aren't destinations themselves, just groupings that expand
-// to reveal their pages.
-// Nav order follows VITA's actual loop, not an arbitrary category split:
-// Resumes (raw material) → Scanner (find/scan/tailor/apply — the hinge
-// the whole loop turns on) → Tracker (track it) → Interview Prep (get ready).
-// Scanner gets a distinct visual mark (a small dot, not a different
-// shape) rather than being folded into either "Prepare" or "Apply" —
-// it genuinely belongs to both.
 const navItems = [
   { key: "resumes", label: "Resumes" },
   { key: "scanner", label: "Scanner", isAnchor: true },
@@ -2597,12 +2579,7 @@ export default function VitaApp() {
   const [checkingAuth, setCheckingAuth] = useState(true);
   const [authView, setAuthView] = useState("landing"); // landing | login | signup
 
-  // After signing in (fresh login/signup, or an auto-restored session),
-  // send someone with zero resumes straight to Resumes instead of the
-  // Dashboard — landing on a completely empty Dashboard is a bad first
-  // impression, and the Scanner (the hero feature) can't be used at all
-  // without a resume yet anyway. This only affects where you land right
-  // after authenticating, not ongoing navigation.
+  
   const routeAfterAuth = async (userData) => {
     setUser(userData);
     try {
@@ -2611,13 +2588,10 @@ export default function VitaApp() {
         setTab("resumes");
       }
     } catch {
-      // If this check fails for any reason, just fall back to the normal
-      // default (Dashboard) rather than blocking sign-in over it.
+    
     }
   };
 
-  // On load, check if a saved token still works — keeps you logged in
-  // across page refreshes instead of forcing a fresh login every time.
   useEffect(() => {
     const token = localStorage.getItem("vita_token");
     if (!token) {
@@ -2694,7 +2668,7 @@ export default function VitaApp() {
           </div>
         </div>
 
-        {/* The loop, in order */}
+        
         <div style={{ display: "flex", gap: space.sm, marginBottom: space.lg, flexWrap: "wrap", alignItems: "center" }}>
           {navItems.map((item, i) => (
             <div key={item.key} style={{ display: "flex", alignItems: "center", gap: space.sm }}>
@@ -2727,9 +2701,6 @@ export default function VitaApp() {
                 )}
                 {item.label}
               </button>
-              {/* Thin connector between steps, standing in for the loop's arrows —
-                  skipped after the last item and never rendered on narrow wraps
-                  since flex-wrap will naturally drop it to the next line with its pill. */}
               {i < navItems.length - 1 && (
                 <span style={{ color: colors.border, fontSize: 12 }}>→</span>
               )}
