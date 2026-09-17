@@ -79,14 +79,11 @@ router.get("/", async (req, res) => {
           [user_id]
         ),
 
-        // All-time application count — gives the dashboard a sense of
-        // "journey so far" rather than only this week's slice.
         pool.query(
           `SELECT COUNT(*)::int AS count FROM applications WHERE user_id = $1`,
           [user_id]
         ),
 
-        // Applications currently at the interviewing stage.
         pool.query(
           `SELECT COUNT(*)::int AS count FROM applications WHERE user_id = $1 AND status = 'interviewing'`,
           [user_id]

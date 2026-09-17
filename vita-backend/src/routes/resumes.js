@@ -6,16 +6,8 @@ import pool from "../db.js";
 
 const router = express.Router();
 
-// Files are handled in memory (never written to disk) and capped at 5MB —
-// plenty for a resume, small enough to not be a DoS vector.
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
 
-// ─────────────────────────────────────────
-// Shared helper: creates a resume + sections + bullets in one transaction.
-// Used by both POST /resumes (manual entry) and POST /resumes/parse
-// (AI-parsed from pasted text or an uploaded file) so the actual
-// database-writing logic only exists in one place.
-// ─────────────────────────────────────────
 async function createResumeWithSections(userId, label, sections) {
   const client = await pool.connect();
   try {
@@ -186,10 +178,6 @@ Rules:
 
 router.get("/", async (req, res) => {
   try {
-    // LATERAL join to aggregate each resume's scan history — same pattern
-    // already used in applications.js for "latest scan". Resumes never
-    // scanned still return one row (scan_count 0, last_scanned_at null),
-    // since it's a LEFT JOIN.
     const result = await pool.query(
       `SELECT r.id, r.label, r.updated_at,
               COALESCE(s.scan_count, 0) AS scan_count,
@@ -219,9 +207,6 @@ router.patch("/bullets/:bulletId", async (req, res) => {
   }
 
   try {
-    // Join through sections -> resumes to confirm this bullet actually
-    // belongs to the logged-in user before allowing the edit — otherwise
-    // a valid token would let someone edit ANY bullet by guessing its ID.
     const result = await pool.query(
       `UPDATE resume_bullets b SET content = $1, last_edited_at = now()
        FROM resume_sections s, resumes r
@@ -255,9 +240,6 @@ router.get("/:id", async (req, res) => {
 
     const resume = resumeResult.rows[0];
 
-    // One query joining sections + bullets is more efficient than looping
-    // queries per section — this returns one row per bullet, ordered
-    // correctly, and we reassemble it into a nested shape below.
     const rowsResult = await pool.query(
       `SELECT
          s.id AS section_id, s.type AS section_type, s.sort_order AS section_order,
@@ -270,7 +252,6 @@ router.get("/:id", async (req, res) => {
       [id]
     );
 
-    // Reassemble the flat rows into { sections: [ { bullets: [...] } ] }
     const sectionsMap = new Map();
     for (const row of rowsResult.rows) {
       if (!sectionsMap.has(row.section_id)) {

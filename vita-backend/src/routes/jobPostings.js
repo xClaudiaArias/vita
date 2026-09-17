@@ -3,12 +3,7 @@ import pool from "../db.js";
 
 const router = express.Router();
 
-// ─────────────────────────────────────────
-// POST /job-postings
-// Stores a scanned job posting. Expects:
-// { "company": "Notion", "role_title": "Senior Product Designer",
-//   "source_url": "https://...", "raw_description": "full text..." }
-// ─────────────────────────────────────────
+
 router.post("/", async (req, res) => {
   const { company, role_title, source_url, raw_description } = req.body;
 
@@ -33,9 +28,6 @@ router.post("/", async (req, res) => {
   }
 });
 
-// ─────────────────────────────────────────
-// GET /job-postings/:id
-// ─────────────────────────────────────────
 router.get("/:id", async (req, res) => {
   const { id } = req.params;
 
@@ -56,14 +48,7 @@ router.get("/:id", async (req, res) => {
   }
 });
 
-// ─────────────────────────────────────────
-// POST /job-postings/extract
-// Body: { "text": "the pasted job description" }
-// Asks Claude to pull out just the company and role title from text
-// the user already pasted — so the scanner doesn't have to ask for
-// them again as blank fields. Does NOT create a job posting; that
-// still happens via POST / at scan time, unchanged.
-// ─────────────────────────────────────────
+
 router.post("/extract", async (req, res) => {
   const { text } = req.body;
 
