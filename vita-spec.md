@@ -1,6 +1,6 @@
 # VITA — Product Spec
 
-A personal job-search companion. Where Simplify and Jobright.ai feel like clinical dashboards, VITA aims to feel like a calm, encouraging companion through the job hunt — same core tools (resume tailoring, application tracking, interview prep, portfolio), warmer delivery.
+A personal job-search companion. Where other Job Assistants feel like clinical dashboards, VITA aims to feel like a calm, encouraging companion through the job hunt — same core tools (resume tailoring, application tracking, interview prep, portfolio), warmer delivery.
 
 ---
 
@@ -81,12 +81,12 @@ Reserve true red only for genuine error/warning states (e.g. failed save) — no
 - Quick-reply chips for common actions (Try again / Next question) plus an explicit low-pressure option: "I'm nervous, help me prep differently" — this should meaningfully change the bot's approach (pacing, difficulty, tone), not just offer generic reassurance
 - Terracotta message-bubble icon (not a robot icon) to keep the "companion" feeling
 
-### 3.5 Portfolio / Public Profile
+<!-- ### 3.5 Portfolio / Public Profile
 
 - Public-facing page, shareable outside the app
 - Header: photo/avatar, name, role, short personal bio (not just a title), social/site links as soft pills
 - Project grid: thumbnail, title, one-line impact statement, skill tags; tapping opens a fuller project detail (not designed yet)
-- Reachable from the dashboard's profile block
+- Reachable from the dashboard's profile block -->
 
 ---
 
