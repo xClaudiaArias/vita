@@ -67,6 +67,7 @@ for each, define:
 
 ## update visuals
 
+- UPDATE v1 has been mocked up - time to polish it
 - large typography
 - intentional whitespace
 - asymmetric layouts
